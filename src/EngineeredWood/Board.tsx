@@ -1,5 +1,6 @@
 import { random } from "remotion";
-import { COLORS } from "./theme";
+import type { BoardColors } from "./schema";
+import { SHADOW, shade } from "./theme";
 
 // Board geometry, in 1920x1080 canvas pixels.
 export const BOARD = {
@@ -21,14 +22,15 @@ const Shadow: React.FC<{ top: number; bottom: number }> = ({ top, bottom }) => (
     y={top + 7}
     width={WIDTH}
     height={bottom - top}
-    fill={COLORS.shadow}
+    fill={SHADOW}
     filter="url(#soft-shadow)"
   />
 );
 
-const Outline: React.FC<{ top: number; bottom: number }> = ({
+const Outline: React.FC<{ top: number; bottom: number; color: string }> = ({
   top,
   bottom,
+  color,
 }) => (
   <rect
     x={BOARD.left}
@@ -36,24 +38,31 @@ const Outline: React.FC<{ top: number; bottom: number }> = ({
     width={WIDTH}
     height={bottom - top}
     fill="none"
-    stroke={COLORS.ink}
+    stroke={color}
     strokeWidth={STROKE}
     strokeLinejoin="round"
   />
 );
 
-const Dot: React.FC<{ y: number }> = ({ y }) => (
-  <circle cx={BOARD.dotX} cy={y} r={5} fill={COLORS.ink} />
+const Dot: React.FC<{ y: number; color: string }> = ({ y, color }) => (
+  <circle cx={BOARD.dotX} cy={y} r={5} fill={color} />
 );
 
-const Knot: React.FC<{ x: number; y: number }> = ({ x, y }) => (
-  <g fill="none" stroke={COLORS.veneerGrain} strokeWidth={2}>
+const Knot: React.FC<{ x: number; y: number; color: string }> = ({
+  x,
+  y,
+  color,
+}) => (
+  <g fill="none" stroke={color} strokeWidth={2}>
     <ellipse cx={x} cy={y} rx={11} ry={6.5} />
     <ellipse cx={x} cy={y} rx={5} ry={2.8} />
   </g>
 );
 
-export const Veneer: React.FC = () => {
+type LayerProps = { colors: BoardColors };
+
+export const Veneer: React.FC<LayerProps> = ({ colors }) => {
+  const grainColor = shade(colors.veneer, 78);
   const { veneerTop: top, coreTop: bottom, left, right } = BOARD;
   const grain = [329, 347, 367].map((y, i) => {
     const wobble = i % 2 === 0 ? 2 : -2;
@@ -63,17 +72,17 @@ export const Veneer: React.FC = () => {
   return (
     <g filter="url(#sketch)">
       <Shadow top={top} bottom={bottom} />
-      <rect x={left} y={top} width={WIDTH} height={bottom - top} fill={COLORS.veneer} />
-      <g fill="none" stroke={COLORS.veneerGrain} strokeWidth={1.6} opacity={0.8}>
+      <rect x={left} y={top} width={WIDTH} height={bottom - top} fill={colors.veneer} />
+      <g fill="none" stroke={grainColor} strokeWidth={1.6} opacity={0.8}>
         {grain.map((d) => (
           <path key={d} d={d} />
         ))}
       </g>
-      <Knot x={808} y={349} />
-      <Knot x={973} y={349} />
-      <Knot x={1057} y={349} />
-      <Outline top={top} bottom={bottom} />
-      <Dot y={349} />
+      <Knot x={808} y={349} color={grainColor} />
+      <Knot x={973} y={349} color={grainColor} />
+      <Knot x={1057} y={349} color={grainColor} />
+      <Outline top={top} bottom={bottom} color={colors.outline} />
+      <Dot y={349} color={colors.outline} />
     </g>
   );
 };
@@ -87,37 +96,40 @@ const speckles = new Array(46).fill(0).map((_, i) => ({
   color: SPECKLE_COLORS[Math.floor(random(`sc${i}`) * SPECKLE_COLORS.length)],
 }));
 
-export const Core: React.FC = () => {
+export const Core: React.FC<LayerProps> = ({ colors }) => {
   const { coreTop: top, backingTop: bottom, left } = BOARD;
   return (
     <g filter="url(#sketch)">
       <Shadow top={top} bottom={bottom} />
-      <rect x={left} y={top} width={WIDTH} height={bottom - top} fill={COLORS.core} />
+      <rect x={left} y={top} width={WIDTH} height={bottom - top} fill={colors.core} />
       <rect x={left} y={top} width={WIDTH} height={bottom - top} fill="url(#core-hatch)" />
       {speckles.map((s, i) => (
         <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={s.color} opacity={0.85} />
       ))}
-      <Outline top={top} bottom={bottom} />
-      <Dot y={520} />
+      <Outline top={top} bottom={bottom} color={colors.outline} />
+      <Dot y={520} color={colors.outline} />
     </g>
   );
 };
 
-export const Backing: React.FC = () => {
+export const Backing: React.FC<LayerProps> = ({ colors }) => {
   const { backingTop: top, bottom, left } = BOARD;
   return (
     <g filter="url(#sketch)">
       <Shadow top={top} bottom={bottom} />
-      <rect x={left} y={top} width={WIDTH} height={bottom - top} fill={COLORS.backing} />
+      <rect x={left} y={top} width={WIDTH} height={bottom - top} fill={colors.backing} />
       <rect x={left} y={top} width={WIDTH} height={bottom - top} fill="url(#backing-hatch)" />
-      <Outline top={top} bottom={bottom} />
-      <Dot y={677} />
+      <Outline top={top} bottom={bottom} color={colors.outline} />
+      <Dot y={677} color={colors.outline} />
     </g>
   );
 };
 
 // Shared SVG defs. `seed` changes every few frames so the hand-drawn lines "boil".
-export const BoardDefs: React.FC<{ seed: number }> = ({ seed }) => (
+export const BoardDefs: React.FC<{ seed: number; colors: BoardColors }> = ({
+  seed,
+  colors,
+}) => (
   <defs>
     <filter id="sketch" x="-5%" y="-5%" width="110%" height="110%">
       <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves={2} seed={seed} result="noise" />
@@ -127,10 +139,10 @@ export const BoardDefs: React.FC<{ seed: number }> = ({ seed }) => (
       <feGaussianBlur stdDeviation={3} />
     </filter>
     <pattern id="core-hatch" width={16} height={16} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <line x1={0} y1={0} x2={0} y2={16} stroke={COLORS.coreHatch} strokeWidth={1.6} />
+      <line x1={0} y1={0} x2={0} y2={16} stroke={shade(colors.core, 88, "#5A7A9A")} strokeWidth={1.6} />
     </pattern>
     <pattern id="backing-hatch" width={9} height={9} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <line x1={0} y1={0} x2={0} y2={9} stroke={COLORS.backingHatch} strokeWidth={2} opacity={0.55} />
+      <line x1={0} y1={0} x2={0} y2={9} stroke={shade(colors.backing, 80)} strokeWidth={2} opacity={0.55} />
     </pattern>
   </defs>
 );

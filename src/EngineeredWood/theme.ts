@@ -11,25 +11,12 @@ for (const weight of ["400", "700", "900"]) {
   });
 }
 
-export const COLORS = {
-  background: "#F0EAE0",
-  navy: "#253157",
-  ink: "#262C40",
-  pill: "#26386A",
-  muted: "#857E7A",
-  pink: "#EE7592",
-  pinkText: "#E8788C",
-  bracket: "#E4848F",
-  veneer: "#F5D65E",
-  veneerGrain: "#C9A338",
-  core: "#FAFBFB",
-  coreHatch: "#DCE3EA",
-  backing: "#64C3DB",
-  backingHatch: "#49A6C4",
-  highlight: "#F3D35F",
-  shadow: "rgba(120, 104, 80, 0.16)",
-  signature: "#3A3F5C",
-};
+// Editable colors are props (see schema.ts); these are fixed details.
+export const SHADOW = "rgba(120, 104, 80, 0.16)";
+
+// A darker/tinted shade of a color, for grain and hatching lines.
+export const shade = (color: string, percent: number, toward = "black") =>
+  `color-mix(in srgb, ${color} ${percent}%, ${toward})`;
 
 export const FPS = 60;
 export const sec = (s: number) => Math.round(s * FPS);

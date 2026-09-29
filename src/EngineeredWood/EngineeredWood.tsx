@@ -6,20 +6,12 @@ import {
 } from "remotion";
 import { Backing, BoardDefs, Core, Veneer } from "./Board";
 import { Reveal } from "./Reveal";
+import type { EngineeredWoodProps } from "./schema";
 import { SIGNATURE_PATH } from "./signature";
-import { COLORS, FONT_FAMILY, sec } from "./theme";
+import { FONT_FAMILY, sec } from "./theme";
 
-// Timeline, in seconds (matches the reference video).
-const T = {
-  underline: 2.3,
-  veneer: 2.75,
-  core: 4.72,
-  backing: 7.2,
-  thickness: 8.4,
-  remember: 9.07,
-};
-
-export const ENGINEERED_WOOD_DURATION = 11.25;
+// All text, timings and colors come in as props: edit them in src/Root.tsx
+// or in the Props panel of Remotion Studio. This file is the layout.
 
 // Lato renders its baseline at ~0.887em below the top of a line-height:1 box.
 const topForBaseline = (baseline: number, size: number) =>
@@ -32,9 +24,8 @@ const Text: React.FC<{
   color: string;
   left?: number;
   right?: number;
-  style?: React.CSSProperties;
   children: React.ReactNode;
-}> = ({ baseline, size, weight, color, left, right, style, children }) => (
+}> = ({ baseline, size, weight, color, left, right, children }) => (
   <div
     style={{
       position: "absolute",
@@ -46,9 +37,8 @@ const Text: React.FC<{
       fontWeight: weight,
       lineHeight: 1,
       color,
-      whiteSpace: "nowrap",
+      whiteSpace: "pre",
       textAlign: right === undefined ? "left" : "right",
-      ...style,
     }}
   >
     {children}
@@ -66,26 +56,58 @@ const Canvas: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </svg>
 );
 
-const LayerLabel: React.FC<{ y: number; title: string; note: string }> = ({
-  y,
-  title,
-  note,
-}) => (
-  <>
-    <Text baseline={y - 6} size={37} weight={900} color={COLORS.navy} right={650}>
-      {title}
-    </Text>
-    <Text baseline={y + 32} size={26} weight={400} color={COLORS.muted} right={650}>
-      {note}
-    </Text>
-  </>
+// A hand-drawn line that stretches to the width of the text it sits under.
+// `progress` (0 to 1) reveals it from left to right.
+const Underline: React.FC<{
+  d: string;
+  color: string;
+  width: number;
+  offset: number;
+  inset?: number;
+  progress?: number;
+}> = ({ d, color, width, offset, inset = 0, progress = 1 }) => (
+  <svg
+    viewBox="0 0 100 10"
+    preserveAspectRatio="none"
+    style={{
+      position: "absolute",
+      left: inset,
+      top: `calc(100% + ${offset}px)`,
+      width: `calc(100% - ${inset}px)`,
+      height: 10,
+      overflow: "visible",
+      clipPath: `inset(-10px calc(${(1 - progress) * 100}% - ${progress * 10}px) -10px -10px)`,
+    }}
+  >
+    <path
+      d={d}
+      fill="none"
+      stroke={color}
+      strokeWidth={width}
+      strokeLinecap="round"
+      vectorEffect="non-scaling-stroke"
+    />
+  </svg>
 );
 
-const TitleUnderline: React.FC = () => {
+const UnderlinedWord: React.FC<{
+  children: React.ReactNode;
+  underline: React.ReactNode;
+}> = ({ children, underline }) => (
+  <span style={{ position: "relative", display: "inline-block" }}>
+    {children}
+    {underline}
+  </span>
+);
+
+const Title: React.FC<{
+  props: EngineeredWoodProps;
+}> = ({ props }) => {
   const frame = useCurrentFrame();
+  const { title, underlinedWord, timing, colors } = props;
   const progress = interpolate(
     frame,
-    [sec(T.underline), sec(T.underline + 1)],
+    [sec(timing.underline), sec(timing.underline + 1)],
     [0, 1],
     {
       extrapolateLeft: "clamp",
@@ -93,62 +115,89 @@ const TitleUnderline: React.FC = () => {
       easing: Easing.inOut(Easing.cubic),
     },
   );
-  return (
-    <path
-      d="M 62 167 C 150 162, 300 161, 406 165"
-      fill="none"
-      stroke={COLORS.pink}
-      strokeWidth={5}
-      strokeLinecap="round"
-      pathLength={1}
-      strokeDasharray={1}
-      strokeDashoffset={1 - progress}
-      opacity={progress > 0 ? 1 : 0}
+
+  const index = underlinedWord ? title.indexOf(underlinedWord) : -1;
+  const underline = (
+    <Underline
+      d="M 1 7 C 26 2, 69 1, 99 5"
+      color={colors.accent}
+      width={5}
+      offset={22.5}
+      inset={2}
+      progress={progress}
     />
+  );
+
+  return (
+    <Text baseline={130} size={66} weight={900} color={colors.text} left={58}>
+      {index === -1 ? (
+        title
+      ) : (
+        <>
+          {title.slice(0, index)}
+          <UnderlinedWord underline={underline}>{underlinedWord}</UnderlinedWord>
+          {title.slice(index + underlinedWord.length)}
+        </>
+      )}
+    </Text>
   );
 };
 
-export const EngineeredWood: React.FC = () => {
+const LayerLabel: React.FC<{
+  y: number;
+  title: string;
+  note: string;
+  colors: EngineeredWoodProps["colors"];
+}> = ({ y, title, note, colors }) => (
+  <>
+    <Text baseline={y - 6} size={37} weight={900} color={colors.text} right={650}>
+      {title}
+    </Text>
+    <Text baseline={y + 32} size={26} weight={400} color={colors.mutedText} right={650}>
+      {note}
+    </Text>
+  </>
+);
+
+export const EngineeredWood: React.FC<EngineeredWoodProps> = (props) => {
   const frame = useCurrentFrame();
+  const { timing, colors, thickness, reminder } = props;
   // Re-seed the sketch filter 12 times a second for a subtle hand-drawn "boil".
   const seed = Math.floor(frame / 5) % 8;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
+    <AbsoluteFill style={{ backgroundColor: colors.background }}>
       <Canvas>
-        <BoardDefs seed={seed} />
-        <TitleUnderline />
+        <BoardDefs seed={seed} colors={colors} />
       </Canvas>
 
-      <Text baseline={130} size={66} weight={900} color={COLORS.navy} left={58}>
-        Engineered wood is built in layers
-      </Text>
+      <Title props={props} />
 
-      <Reveal at={T.veneer}>
+      <Reveal at={timing.veneer}>
         <Canvas>
-          <Veneer />
+          <Veneer colors={colors} />
         </Canvas>
-        <LayerLabel y={349} title="Real wood veneer" note="the bit you actually see" />
+        <LayerLabel y={349} {...props.veneer} colors={colors} />
       </Reveal>
 
-      <Reveal at={T.core}>
+      <Reveal at={timing.core}>
         <Canvas>
-          <Core />
+          <Core colors={colors} />
         </Canvas>
-        <LayerLabel y={520} title="Plywood / HDF core" note="where the thickness hides" />
+        <LayerLabel y={520} {...props.core} colors={colors} />
       </Reveal>
 
-      <Reveal at={T.backing}>
+      <Reveal at={timing.backing}>
         <Canvas>
-          <Backing />
+          <Backing colors={colors} />
         </Canvas>
-        <LayerLabel y={677} title="Backing layer" note="stops the board bowing" />
+        <LayerLabel y={677} {...props.backing} colors={colors} />
       </Reveal>
 
-      <Reveal at={T.thickness}>
+      <Reveal at={timing.thickness}>
         <Canvas>
           <g
-            stroke={COLORS.bracket}
+            stroke={colors.accent}
             strokeWidth={4}
             strokeLinecap="round"
             filter="url(#sketch)"
@@ -158,28 +207,30 @@ export const EngineeredWood: React.FC = () => {
             <line x1={1153} y1={700} x2={1184} y2={700} />
           </g>
         </Canvas>
-        <Text baseline={488} size={81} weight={900} color={COLORS.navy} left={1211}>
-          14–20
-          <span style={{ fontSize: 40, marginLeft: 3 }}>mm</span>
+        <Text baseline={488} size={81} weight={900} color={colors.text} left={1211}>
+          {thickness.value}
+          <span style={{ fontSize: 40, marginLeft: 3 }}>{thickness.unit}</span>
         </Text>
-        <Text baseline={532} size={29} weight={700} color={COLORS.pinkText} left={1213}>
-          thicker than most floors
+        <Text baseline={532} size={29} weight={700} color={colors.accent} left={1213}>
+          {thickness.highlight}
         </Text>
-        <Text baseline={570} size={27} weight={400} color={COLORS.muted} left={1213}>
-          (laminate is only ~8mm)
+        <Text baseline={570} size={27} weight={400} color={colors.mutedText} left={1213}>
+          {thickness.note}
         </Text>
       </Reveal>
 
-      <Reveal at={T.remember}>
+      <Reveal at={timing.reminder}>
         <div
           style={{
             position: "absolute",
             left: 60,
             top: 940,
-            width: 198,
+            minWidth: 198,
             height: 60,
+            padding: "0 22px",
+            boxSizing: "border-box",
             borderRadius: 11,
-            backgroundColor: COLORS.pill,
+            backgroundColor: colors.badge,
             boxShadow: "4px 5px 10px rgba(38, 56, 106, 0.2)",
             display: "flex",
             alignItems: "center",
@@ -191,31 +242,36 @@ export const EngineeredWood: React.FC = () => {
             color: "white",
           }}
         >
-          REMEMBER
+          {reminder.badge}
         </div>
-        <Canvas>
-          <path
-            d="M 288 994 C 600 992, 900 995, 1182 993"
-            fill="none"
-            stroke={COLORS.highlight}
-            strokeWidth={4}
-            strokeLinecap="round"
-          />
-        </Canvas>
-        <Text baseline={980} size={39.5} weight={700} color={COLORS.navy} left={286}>
-          Measure the <span style={{ fontWeight: 900 }}>finished</span> floor
-          height before you order.
+        <Text baseline={980} size={39.5} weight={700} color={colors.text} left={286}>
+          <UnderlinedWord
+            underline={
+              <Underline
+                d="M 0.2 5 C 34 3, 66 6, 99.8 4"
+                color={colors.highlight}
+                width={4}
+                offset={4}
+              />
+            }
+          >
+            {reminder.before}
+            <span style={{ fontWeight: 900 }}>{reminder.bold}</span>
+            {reminder.after}
+          </UnderlinedWord>
         </Text>
       </Reveal>
 
-      <svg
-        viewBox="0 0 260 140"
-        width={260}
-        height={140}
-        style={{ position: "absolute", left: 1630, top: 915 }}
-      >
-        <path d={SIGNATURE_PATH} fill={COLORS.signature} fillRule="evenodd" />
-      </svg>
+      {props.showSignature ? (
+        <svg
+          viewBox="0 0 260 140"
+          width={260}
+          height={140}
+          style={{ position: "absolute", left: 1630, top: 915 }}
+        >
+          <path d={SIGNATURE_PATH} fill={colors.signature} fillRule="evenodd" />
+        </svg>
+      ) : null}
     </AbsoluteFill>
   );
 };
