@@ -2,7 +2,9 @@ import { Composition } from "remotion";
 import { PixelCanvas } from "./PixelCanvas";
 import type { Effect } from "./PixelCanvas";
 import { castMagic } from "./effects/castMagic";
+import { castMagic2 } from "./effects/castMagic2";
 import { freeze } from "./effects/freeze";
+import { freeze2 } from "./effects/freeze2";
 import { silence } from "./effects/silence";
 
 // Pixel-art card VFX for Undercards: 220x250, 16 fps, 1.5 s, transparent.
@@ -14,7 +16,9 @@ const SHEET_COLUMNS = 6;
 
 const effects: Record<string, Effect> = {
   CastMagic: castMagic,
+  CastMagic2: castMagic2,
   Freeze: freeze,
+  Freeze2: freeze2,
   Silence: silence,
 };
 

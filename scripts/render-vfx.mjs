@@ -4,7 +4,7 @@
 // Any extra --flags are passed straight to the Remotion CLI.
 import { execFileSync } from "node:child_process";
 
-const ALL = ["CastMagic", "Freeze", "Silence"];
+const ALL = ["CastMagic", "CastMagic2", "Freeze", "Freeze2", "Silence"];
 const args = process.argv.slice(2);
 const flags = args.filter((a) => a.startsWith("--"));
 const picked = args.filter((a) => !a.startsWith("--"));
