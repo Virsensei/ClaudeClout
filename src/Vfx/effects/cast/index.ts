@@ -4,6 +4,7 @@ import { castButterfly } from "./butterfly";
 import { castFrame } from "./frame";
 import { castGlove } from "./glove";
 import { castSeal } from "./seal";
+import { castSwarm } from "./swarm";
 
 // Spell-card cast effects: three designs, each in every class colour.
 // Change a colour here and all three versions follow.
@@ -35,3 +36,5 @@ for (const design of Object.keys(DESIGNS)) {
 castEffects.CastGloveBravery = castGlove(CLASS_COLORS.Bravery);
 // Integrity: a butterfly that snaps its wings open and flies out of the card.
 castEffects.CastButterflyIntegrity = castButterfly(CLASS_COLORS.Integrity);
+// Integrity: a swarm of little butterflies.
+castEffects.CastSwarmIntegrity = castSwarm(CLASS_COLORS.Integrity);
