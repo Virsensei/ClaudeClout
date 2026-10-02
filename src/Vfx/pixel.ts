@@ -36,6 +36,8 @@ export const span = (frame: number, from: number, to: number) =>
 
 export const easeOut = (t: number) => 1 - (1 - t) ** 3;
 export const easeIn = (t: number) => t ** 2;
+export const easeInOut = (t: number) =>
+  t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 
 export const rand = (seed: string) => random(seed);
 

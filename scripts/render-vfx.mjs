@@ -12,6 +12,13 @@ const ALL = [
   "Freeze",
   "Freeze2",
   "Silence",
+  "SpellDetermination",
+  "SpellBravery",
+  "SpellPerseverance",
+  "SpellIntegrity",
+  "SpellPatience",
+  "SpellKindness",
+  "SpellJustice",
 ];
 const args = process.argv.slice(2);
 const flags = args.filter((a) => a.startsWith("--"));

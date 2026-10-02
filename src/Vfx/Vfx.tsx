@@ -8,6 +8,13 @@ import { castMagic4 } from "./effects/castMagic4";
 import { freeze } from "./effects/freeze";
 import { freeze2 } from "./effects/freeze2";
 import { silence } from "./effects/silence";
+import { determination } from "./effects/souls/determination";
+import { bravery } from "./effects/souls/bravery";
+import { perseverance } from "./effects/souls/perseverance";
+import { integrity } from "./effects/souls/integrity";
+import { patience } from "./effects/souls/patience";
+import { kindness } from "./effects/souls/kindness";
+import { justice } from "./effects/souls/justice";
 
 // Pixel-art card VFX for Undercards: 220x250, 16 fps, 1.5 s, transparent.
 export const VFX_FPS = 16;
@@ -24,6 +31,14 @@ const effects: Record<string, Effect> = {
   Freeze: freeze,
   Freeze2: freeze2,
   Silence: silence,
+  // One spell-casting effect per class, in the class colour.
+  SpellDetermination: determination,
+  SpellBravery: bravery,
+  SpellPerseverance: perseverance,
+  SpellIntegrity: integrity,
+  SpellPatience: patience,
+  SpellKindness: kindness,
+  SpellJustice: justice,
 };
 
 const Vfx: React.FC<{ effect: string }> = ({ effect }) => (
