@@ -1,6 +1,7 @@
 import type { Effect } from "../../PixelCanvas";
 import { castBurst } from "./burst";
 import { castFrame } from "./frame";
+import { castGlove } from "./glove";
 import { castSeal } from "./seal";
 
 // Spell-card cast effects: three designs, each in every class colour.
@@ -28,3 +29,6 @@ for (const design of Object.keys(DESIGNS)) {
     castEffects[`Cast${design}${cls}`] = DESIGNS[design](CLASS_COLORS[cls]);
   }
 }
+
+// Class-specific cast: Bravery's boxing glove (its Undertale item is the Tough Glove).
+castEffects.CastGloveBravery = castGlove(CLASS_COLORS.Bravery);
