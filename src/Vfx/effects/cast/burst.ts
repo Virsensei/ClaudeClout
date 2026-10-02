@@ -29,7 +29,8 @@ export const castBurst = (hex: string): Effect => {
       (l) => {
         const pop = ([0.4, 1.3, 1] as number[])[f] ?? 1;
         const pinch = f === 7 || f === 8 ? 2 : 0;
-        const fly = age > 0 ? easeOut(span(age, 0, 5)) * 14 : 0;
+        // On the release the brackets retract into the corners (never leave the card).
+        const retract = age > 0 ? easeOut(span(age, 0, 4)) : 0;
         const c = age === 0 ? P.white : f >= 5 && f % 2 === 1 ? P.pale : P.base;
         const pts: [number, number, number, number][] = [
           [CARD.x0, CARD.y0, 1, 1],
@@ -38,9 +39,12 @@ export const castBurst = (hex: string): Effect => {
           [CARD.x1, CARD.y1, -1, -1],
         ];
         for (const [x, y, sx, sy] of pts) {
-          const px = x + sx * (pinch - fly) + (1 - pop) * sx * 8;
-          const py = y + sy * (pinch - fly) + (1 - pop) * sy * 8;
-          bracket(l, px, py, sx * pop, sy * pop, c);
+          const px = x + sx * (pinch + 1);
+          const py = y + sy * (pinch + 1);
+          const arm = 8 * pop * (1 - retract);
+          if (arm >= 1) {
+            bracket(l, px, py, (sx * arm) / 8, (sy * arm) / 8, c);
+          }
         }
       },
       { outline: age === 1 ? P.white : P.ink, fade: 1 - span(f, BURST + 1, BURST + 5) },
@@ -58,14 +62,14 @@ export const castBurst = (hex: string): Effect => {
               continue;
             }
             const a = (i * TAU) / 16 + rand(`cb-a-${i}`) * 0.3;
-            const r0 = 58 + rand(`cb-r-${i}`) * 10;
+            const r0 = 30 + rand(`cb-r-${i}`) * 8;
             for (let k = 2; k >= 0; k--) {
               const tt = Math.max(0, t - k * 0.08);
               const e = easeIn(tt);
               const d = r0 * (1 - e);
               const aa = a + e * 0.9;
               const x = CX + Math.cos(aa) * d;
-              const y = CY + Math.sin(aa) * d * 1.3;
+              const y = CY + Math.sin(aa) * d * 1.45;
               if (k === 0) {
                 l.rect(x, y, 2, 2, P.white);
               } else {
@@ -110,7 +114,7 @@ export const castBurst = (hex: string): Effect => {
         if (age <= 7) {
           for (let i = 0; i < 10; i++) {
             const a = (i * TAU) / 10 + 0.31;
-            const d = 10 + easeOut(span(age, 0, 8)) * 40;
+            const d = 10 + easeOut(span(age, 0, 8)) * 26;
             const x = CX + Math.cos(a) * d;
             const y = CY + Math.sin(a) * d * 1.2;
             const tall = (age + i) % 2 === 0;
@@ -138,7 +142,7 @@ export const castBurst = (hex: string): Effect => {
       });
     }
 
-    b.layer((l) => risingSparkles(l, f, BURST + 3, CX, CY, 70, 90, P, "cb-s", 16), { outline: P.ink });
+    b.layer((l) => risingSparkles(l, f, BURST + 3, CX, CY + 4, 66, 64, P, "cb-s", 16), { outline: P.ink });
     b.layer((l) => finalTwinkle(l, CX, CY, f - 19, P), { outline: P.ink });
   };
 

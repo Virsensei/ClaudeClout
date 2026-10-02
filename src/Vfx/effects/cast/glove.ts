@@ -16,7 +16,7 @@ const CARD = { x0: 15, y0: 4, x1: 94, y1: 121 };
 const TAU = Math.PI * 2;
 const PUNCH = 6;
 const POP = 15;
-const REST_Y = CY + 16;
+const REST_Y = CY + 22;
 const SIZE = 1.2;
 const FLOOR = CY + 46;
 
@@ -83,7 +83,8 @@ export const castGlove = (hex: string): Effect => {
       (l) => {
         const pop = ([0.4, 1.3, 1] as number[])[f] ?? 1;
         const pinch = f >= 4 && f < PUNCH ? 2 : 0;
-        const fly = age > 0 ? easeOut(span(age, 0, 5)) * 14 : 0;
+        // On the release the brackets retract into the corners (never leave the card).
+        const retract = age > 0 ? easeOut(span(age, 0, 4)) : 0;
         const c = age === 0 ? P.white : P.base;
         for (const [x, y, sx, sy] of [
           [CARD.x0, CARD.y0, 1, 1],
@@ -91,10 +92,13 @@ export const castGlove = (hex: string): Effect => {
           [CARD.x0, CARD.y1, 1, -1],
           [CARD.x1, CARD.y1, -1, -1],
         ]) {
-          const px = x + sx * (pinch - fly) + (1 - pop) * sx * 8;
-          const py = y + sy * (pinch - fly) + (1 - pop) * sy * 8;
-          l.thickLine(px, py, px + sx * 8 * pop, py, 2, c);
-          l.thickLine(px, py, px, py + sy * 8 * pop, 2, c);
+          const px = x + sx * (pinch + 1);
+          const py = y + sy * (pinch + 1);
+          const arm = 8 * pop * (1 - retract);
+          if (arm >= 1) {
+            l.thickLine(px, py, px + sx * arm, py, 2, c);
+            l.thickLine(px, py, px, py + sy * arm, 2, c);
+          }
         }
       },
       { outline: age === 1 ? P.white : P.ink, fade: 1 - span(f, PUNCH + 1, PUNCH + 5) },
@@ -115,14 +119,14 @@ export const castGlove = (hex: string): Effect => {
     if (age >= 0 && age <= 1) {
       b.layer((l) => {
         for (let k = 1; k <= 3; k++) {
-          l.disc(CX + 1, CY - 2 + k * 9, 10 - k * 1.5, P.light, 0.7 - k * 0.15);
+          l.disc(CX + 1, CY + 12 + k * 9, 10 - k * 1.5, P.light, 0.7 - k * 0.15);
         }
       });
     }
 
     // Impact burst at the knuckles.
     const BX = CX + 1;
-    const BY = CY - 36;
+    const BY = CY - 26;
     if (age >= 0 && age <= 4) {
       b.layer(
         (l) => {
@@ -131,15 +135,16 @@ export const castGlove = (hex: string): Effect => {
           if (age <= 3) {
             for (let i = 0; i < 12; i++) {
               const a = (i * TAU) / 12 + 0.13;
-              const r0 = 24 + age * 6;
-              l.thickLine(BX + Math.cos(a) * r0, BY + Math.sin(a) * r0, BX + Math.cos(a) * (r0 + 9 - age * 2), BY + Math.sin(a) * (r0 + 9 - age * 2), 2, P.pale);
+              const r0 = 18 + age * 3;
+              const r1 = r0 + 8 - age * 2;
+              l.thickLine(BX + Math.cos(a) * r0, BY + Math.sin(a) * r0, BX + Math.cos(a) * r1, BY + Math.sin(a) * r1, 2, P.pale);
             }
           }
         },
         { outline: age === 1 ? P.white : P.ink },
       );
     }
-    doubleShock(b, BX, BY, age, P, 1.1);
+    doubleShock(b, BX, BY, age, P, 0.6);
 
     // The glove.
     if (s > 0) {
@@ -155,15 +160,15 @@ export const castGlove = (hex: string): Effect => {
           x += f % 2 ? 1 : -1;
         }
       } else if (age === 0 || age === 1) {
-        y = CY + 8;
+        y = CY + 23;
         sx = 0.8;
         sy = 1.35;
       } else if (age === 2) {
-        y = CY + 12;
+        y = CY + 27;
         sx = 1.15;
         sy = 0.88;
       } else if (age >= 3) {
-        y = CY + 12 + (f >= 10 ? Math.round(Math.sin(f * 1.4)) : 0);
+        y = CY + 25 + (f >= 10 ? Math.round(Math.sin(f * 1.4)) : 0);
       }
       b.layer((l) => glove(l, x, y, sx * s * SIZE, sy * s * SIZE, P, age === 0), {
         outline: age === 1 ? P.white : P.ink,
@@ -177,7 +182,10 @@ export const castGlove = (hex: string): Effect => {
           for (let i = 0; i < 10; i++) {
             const a = -Math.PI / 2 + (i - 4.5) * 0.5;
             const v = 3 + rand(`gs-v-${i}`) * 3;
-            const [x, y] = bouncePosition(BX, BY, Math.cos(a) * v * 1.2, Math.sin(a) * v, age, FLOOR);
+            const [x, y] = bouncePosition(BX, BY, Math.cos(a) * v, Math.sin(a) * v, age, FLOOR);
+            if (x < 4 || x > 105 || y < 4) {
+              continue;
+            }
             chunk(l, x, y, age < 4 ? 3 : 2, i % 3 === 0 ? P.white : i % 3 === 1 ? P.pale : P.light);
           }
         }
@@ -195,13 +203,13 @@ export const castGlove = (hex: string): Effect => {
         // Knuckle twinkles.
         if (f >= PUNCH + 4 && f < POP) {
           const k = (f - PUNCH - 4) % 3;
-          l.sparkle(CX - 4 + k * 6, CY - 18, 2, P.pale, P.white);
+          l.sparkle(CX - 4 + k * 6, CY - 8, 2, P.pale, P.white);
         }
       },
       { outline: P.ink, fade: 1 - span(f, 17, 21) },
     );
 
-    b.layer((l) => finalTwinkle(l, CX + 1, CY - 6, f - (POP + 4), P), { outline: P.ink });
+    b.layer((l) => finalTwinkle(l, CX + 1, CY + 4, f - (POP + 4), P), { outline: P.ink });
   };
 
   return withShake(effect, [

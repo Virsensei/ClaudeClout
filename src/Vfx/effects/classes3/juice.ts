@@ -26,7 +26,8 @@ export const withShake =
       const age = f - at;
       if (age >= 0 && age < SHAKE.length) {
         dx += SHAKE[age][0] * strength;
-        dy += SHAKE[age][1] * strength;
+        // Vertical jolt kept to 1px: the card nearly fills the canvas height.
+        dy += SHAKE[age][1] * Math.min(1, strength);
       }
     }
     if (dx === 0 && dy === 0) {

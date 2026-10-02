@@ -1,132 +1,167 @@
 import type { Effect } from "../../PixelCanvas";
-import { CX, CY, easeInOut, easeOut, rand, span } from "../../pixel";
+import { CX, CY, easeIn, easeOut, rand, span } from "../../pixel";
 import type { PixelBuffer, RGB } from "../../pixel";
 import type { Point } from "../classes/shared";
 import { ramp, transform } from "../classes/shared";
-import { finalTwinkle, withShake } from "../classes3/juice";
+import { doubleShock, withShake } from "../classes3/juice";
 
-// Cast, "Butterfly Swarm" (Integrity): little butterflies flutter in from
-// all around the card on spiral paths and settle into a turning ring, their
-// wings falling into sync; then all open at once (flash, fine rays, soft
-// bloom) and they spiral out and stream up out of the card, leaving glitter.
+// Cast, "Butterfly Swarm" (Integrity): a soft glow gathers in the card's
+// centre and blooms, releasing little butterflies one after another. Each
+// flies on its own, like in nature: its own flap rhythm, its own wandering
+// path with the bob of each wingbeat, all inside the card. Each leaves at
+// its own moment by shrinking away into a tiny twinkle, so nothing ever
+// flies out of the frame.
 
 const TAU = Math.PI * 2;
-const COUNT = 12;
-const SYNC = 8;
-const RING = 24;
+const COUNT = 10;
+const BLOOM = 3;
+// Area the butterflies stay inside (the card, inset a little).
+const BOX = { x0: 21, y0: 12, x1: 88, y1: 112 };
 
-// A tiny butterfly; `w` is how open the wings are (0.3 .. 1).
-const tiny = (l: PixelBuffer, x: number, y: number, w: number, tilt: number, wing: RGB, accent: RGB, body: RGB) => {
-  const t = transform(x, y, tilt, 1);
-  for (const s of [-1, 1]) {
-    l.polygon(([[0, -1], [s * 3 * w, -4.5], [s * 5.5 * w, -3], [s * 4 * w, 0], [0, 0.5]] as Point[]).map(t), wing);
-    l.polygon(([[0, 0], [s * 3.5 * w, 1], [s * 2.5 * w, 3.5], [0, 2]] as Point[]).map(t), accent);
+const tiny = (l: PixelBuffer, x: number, y: number, w: number, tilt: number, s: number, wing: RGB, accent: RGB, body: RGB) => {
+  const t = transform(x, y, tilt, s);
+  for (const side of [-1, 1]) {
+    l.polygon(([[0, -1], [side * 3 * w, -4.5], [side * 5.5 * w, -3], [side * 4 * w, 0], [0, 0.5]] as Point[]).map(t), wing);
+    l.polygon(([[0, 0], [side * 3.5 * w, 1], [side * 2.5 * w, 3.5], [0, 2]] as Point[]).map(t), accent);
   }
   l.line(...t([0, -2]), ...t([0, 2]), body);
+};
+
+type Flier = {
+  release: number; // frame it leaves the bloom
+  leave: number; // frame it starts shrinking away
+  heading: number;
+  reach: number;
+  flapSpeed: number;
+  flapPhase: number;
+  wander: number[];
+};
+
+const FLIERS: Flier[] = new Array(COUNT).fill(0).map((_, i) => ({
+  release: BLOOM + i * 0.45 + rand(`fl-r-${i}`) * 0.4,
+  leave: 12 + rand(`fl-l-${i}`) * 5,
+  heading: (i * TAU) / COUNT + (rand(`fl-h-${i}`) - 0.5) * 0.5,
+  reach: 12 + rand(`fl-d-${i}`) * 26,
+  flapSpeed: 1.1 + rand(`fl-s-${i}`) * 0.9,
+  flapPhase: rand(`fl-p-${i}`) * TAU,
+  wander: new Array(8).fill(0).map((__, k) => rand(`fl-w-${i}-${k}`)),
+}));
+
+// Where a butterfly is `t` frames after it was released.
+const position = (b: Flier, t: number): Point => {
+  const out = easeOut(Math.min(1, t / 4));
+  const [w0, w1, w2, w3, w4, w5, w6, w7] = b.wander;
+  const settle = Math.min(1, t / 2);
+  let x = CX + Math.cos(b.heading) * b.reach * 0.95 * out;
+  let y = CY + Math.sin(b.heading) * b.reach * 1.35 * out;
+  x += (Math.sin(t * (0.5 + w0 * 0.5) + w1 * TAU) * 6 + Math.sin(t * (1.1 + w2) + w3 * TAU) * 2.5) * settle;
+  y += (Math.cos(t * (0.4 + w4 * 0.5) + w5 * TAU) * 5 + Math.sin(t * (1.3 + w6) + w7 * TAU) * 2) * settle;
+  y -= t * 0.7; // gentle upward drift
+  y -= Math.abs(Math.sin(t * b.flapSpeed + b.flapPhase)) * 1.5; // bob with each wingbeat
+  return [Math.min(BOX.x1, Math.max(BOX.x0, x)), Math.min(BOX.y1, Math.max(BOX.y0, y))];
 };
 
 export const castSwarm = (hex: string): Effect => {
   const P = ramp(hex);
 
-  // Each butterfly's position, wing openness and tilt at frame f.
-  const state = (i: number, f: number): [number, number, number, number] => {
-    const seat = (i * TAU) / COUNT;
-    const flutter = 0.35 + 0.65 * Math.abs(Math.sin(f * 1.5 + (f < 5 ? i * 1.3 : 0)));
-    if (f < SYNC) {
-      // Spiralling in towards a seat on the turning ring.
-      const delay = rand(`sw-d-${i}`) * 1.5;
-      const e = easeInOut(span(f, -1 + delay, 6 + delay * 0.4));
-      const start = seat + 1.6 + rand(`sw-a-${i}`) * 0.6;
-      const ring = RING - (f >= 6 ? (f - 5) * 1 : 0);
-      const turn = f * 0.1;
-      const r = 50 * (1 - e) + ring * e;
-      const a = start + (seat + turn - start) * e;
-      return [CX + Math.cos(a) * r, CY + Math.sin(a) * r * 1.1, flutter, Math.sin(f + i) * 0.2];
-    }
-    if (f === SYNC || f === SYNC + 1) {
-      const a = seat + SYNC * 0.1;
-      const r = f === SYNC ? RING + 2 : RING;
-      return [CX + Math.cos(a) * r, CY + Math.sin(a) * r * 1.1, f === SYNC ? 1.15 : 1, 0];
-    }
-    // Spiralling out, then curling up and away out of the card.
-    const age = f - SYNC - 1;
-    const a = seat + SYNC * 0.1 + age * 0.18;
-    const r = RING + easeOut(span(age, 0, 6)) * 12;
-    const lift = age * age * 1.0 + age * 2.2;
-    const sway = Math.sin(age * 0.9 + i) * 3;
-    return [CX + Math.cos(a) * r + sway, CY + Math.sin(a) * r * 1.1 - lift, flutter, Math.sin(age + i) * 0.3];
-  };
-
   const effect: Effect = (b, f) => {
-    const age = f - SYNC;
-
-    // The ring the swarm settles on, drawn faintly while they gather.
-    if (f >= 3 && f <= SYNC) {
-      b.ring(CX, CY, RING - (f >= 6 ? (f - 5) * 1 : 0), 1, f === SYNC ? P.white : P.light, f === SYNC ? 1 : 0.35 + (f - 3) * 0.08);
-    }
-
-    // The moment they all open: fine rays and a soft bloom.
-    if (age >= 0 && age <= 3) {
+    // A soft glow gathering in the centre, then blooming.
+    if (f <= BLOOM) {
       b.layer(
         (l) => {
-          for (let i = 0; i < 16; i++) {
-            const a = (i * TAU) / 16 + 0.1;
-            const len = ([50, 44, 34, 22] as number[])[age] * (i % 2 === 0 ? 1 : 0.7);
-            l.line(CX + Math.cos(a) * 8, CY + Math.sin(a) * 8, CX + Math.cos(a) * len, CY + Math.sin(a) * len, age === 0 ? P.white : P.pale, age < 2 ? 1 : 0.6);
+          const grow = easeIn(span(f, -1, BLOOM));
+          for (let i = 0; i < 10; i++) {
+            const a = (i * TAU) / 10 + f * 0.4;
+            const d = 34 * (1 - grow) + 3;
+            l.rect(CX + Math.cos(a) * d, CY + Math.sin(a) * d * 1.2, 2, 2, i % 3 === 0 ? P.white : P.pale);
           }
-          l.disc(CX, CY, ([6, 4, 2, 1] as number[])[age], P.white);
+          const r = f === BLOOM ? 9 : 2 + grow * 4;
+          l.disc(CX, CY, r + 1.5, f === BLOOM ? P.white : P.base);
+          l.disc(CX, CY, r, f === BLOOM ? P.white : P.light);
+          l.disc(CX, CY, Math.max(1, r - 2), P.white);
         },
         { outline: P.ink },
       );
     }
-    if (age >= 0 && age <= 6) {
-      const t = age / 6;
-      b.ring(CX, CY, RING + 6 + easeOut(t) * 26, 2 - t, P.pale, 1 - t * 0.85);
+    const age = f - BLOOM;
+    if (age >= 0 && age <= 3) {
+      b.layer(
+        (l) => {
+          for (let i = 0; i < 12; i++) {
+            const a = (i * TAU) / 12 + 0.15;
+            const len = ([26, 22, 15, 8] as number[])[age] * (i % 2 === 0 ? 1 : 0.7);
+            l.line(CX + Math.cos(a) * 6, CY + Math.sin(a) * 6, CX + Math.cos(a) * len, CY + Math.sin(a) * len, P.pale, age < 2 ? 1 : 0.6);
+          }
+        },
+        { outline: P.ink },
+      );
     }
+    doubleShock(b, CX, CY, age, P, 0.7);
 
-    // Glitter left behind each butterfly.
+    // Glitter trailing each butterfly.
     b.layer(
       (l) => {
-        for (let i = 0; i < COUNT; i++) {
+        FLIERS.forEach((fl, i) => {
+          const t = f - fl.release;
+          if (t < 1 || f >= fl.leave + 1) {
+            return;
+          }
           for (let k = 1; k <= 2; k++) {
-            const tf = f - k * 0.6;
-            if (tf < 0 || (f + i + k) % 2 === 0) {
+            if ((f + i + k) % 2 === 0) {
               continue;
             }
-            const [x, y] = state(i, tf);
-            if (y < -4) {
-              continue;
-            }
+            const [x, y] = position(fl, t - k * 0.7);
             l.set(x + (k === 1 ? 1 : -1), y + 3, k === 1 ? P.pale : P.light);
           }
-        }
+        });
       },
-      { fade: 1 - span(f, 18, 21) },
     );
 
-    // The butterflies.
+    // The butterflies, each on its own.
     b.layer(
       (l) => {
-        for (let i = 0; i < COUNT; i++) {
-          const [x, y, w, tilt] = state(i, f);
-          if (y < -8) {
-            continue;
+        FLIERS.forEach((fl, i) => {
+          const t = f - fl.release;
+          if (t < 0) {
+            return;
           }
-          const flash = age === 0;
-          const wing = flash ? P.white : i % 3 === 0 ? P.light : P.base;
-          const accent = flash ? P.white : i % 3 === 0 ? P.pale : P.light;
-          tiny(l, x, y, w, tilt, wing, accent, flash ? P.pale : P.deep);
-          if (!flash && w > 0.8 && (f + i) % 4 === 0) {
-            l.set(x - 3 * w, y - 3, P.white);
-            l.set(x + 3 * w, y - 3, P.white);
+          const u = f - fl.leave;
+          // Pop in from the bloom, shrink away at the end.
+          const popIn = t < 0.6 ? 0.45 : t < 1.6 ? 1.25 : 1;
+          const leaving = u < 0 ? 1 : (([1.18, 0.78, 0.42] as number[])[Math.floor(u)] ?? 0);
+          const s = popIn * leaving;
+          if (s <= 0) {
+            return;
           }
-        }
+          const [x, y] = position(fl, t);
+          const [nx] = position(fl, t + 0.3);
+          const w = 0.3 + 0.7 * Math.abs(Math.sin(t * fl.flapSpeed + fl.flapPhase));
+          const light = i % 3 === 0;
+          tiny(l, x, y, w, (nx - x) * 0.18, s, light ? P.light : P.base, light ? P.pale : P.light, P.deep);
+          if (w > 0.85 && s >= 1) {
+            l.set(x - 3, y - 3, P.white);
+            l.set(x + 3, y - 3, P.white);
+          }
+        });
       },
-      { outline: age === 1 ? P.white : P.ink, fade: 1 - span(f, 19, 22) },
+      { outline: P.ink },
     );
 
-    b.layer((l) => finalTwinkle(l, CX, 14, f - 19, P), { outline: P.ink });
+    // The tiny twinkle each one leaves behind as it vanishes.
+    b.layer(
+      (l) => {
+        FLIERS.forEach((fl) => {
+          const u = Math.floor(f - fl.leave) - 3;
+          if (u < 0 || u > 2) {
+            return;
+          }
+          const [x, y] = position(fl, Math.floor(fl.leave) + 2 - fl.release);
+          l.sparkle(x, y, [3, 2, 1][u], P.pale, P.white);
+        });
+      },
+      { outline: P.ink },
+    );
   };
 
-  return withShake(effect, [[SYNC, 0.5]]);
+  return withShake(effect, [[BLOOM, 0.5]]);
 };

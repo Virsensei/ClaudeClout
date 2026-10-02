@@ -79,7 +79,7 @@ export const castSeal = (hex: string): Effect => {
               continue;
             }
             const a = rand(`cs-a-${i}`) * TAU + t * 2;
-            const d = (46 + rand(`cs-r-${i}`) * 12) * (1 - easeIn(t)) + 4;
+            const d = (32 + rand(`cs-r-${i}`) * 8) * (1 - easeIn(t)) + 4;
             l.rect(CX + Math.cos(a) * d, CY + Math.sin(a) * d, 2, 2, i % 3 === 0 ? P.white : P.pale);
           }
         },
@@ -121,7 +121,7 @@ export const castSeal = (hex: string): Effect => {
         if (ra >= 0 && ra <= 6) {
           for (let i = 0; i < 10; i++) {
             const a = (i * TAU) / 10 + 0.3;
-            const d = R * 1.2 + ra * 5;
+            const d = R * 1.12 + ra * 2.5;
             rune(l, CX + Math.cos(a) * d, CY + Math.sin(a) * d - ra, i + ra, i % 2 ? P.light : P.pale);
           }
         }

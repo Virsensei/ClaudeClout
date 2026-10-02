@@ -3,18 +3,19 @@ import { CX, CY, easeIn, easeOut, rand, span } from "../../pixel";
 import type { PixelBuffer, RGB } from "../../pixel";
 import type { Point } from "../classes/shared";
 import { ramp, transform } from "../classes/shared";
-import { doubleShock, finalTwinkle, withShake } from "../classes3/juice";
+import { doubleShock, finalTwinkle, popOut, withShake } from "../classes3/juice";
 
 // Cast, "Butterfly" (Integrity): corner brackets pop onto the card, a
 // butterfly sits with its wings closed while motes gather into it, then
 // its wings snap open (flash, hit-stop, shake, shockwave, rays). Two big
-// flaps throw off glittering wing dust, and a last flap launches it up out
-// of the top of the card, trailing sparkles, ending in a twinkle.
+// flaps throw off glittering wing dust, a last flap lifts it, and it
+// shrinks away into a twinkle without ever leaving the card.
 
 const CARD = { x0: 15, y0: 4, x1: 94, y1: 121 };
 const TAU = Math.PI * 2;
 const OPEN = 6;
 const LAUNCH = 13;
+const SHRINK = 15;
 const SIZE = 1.45;
 
 // Wing openness per frame: closed and trembling, snap open, two flaps, launch.
@@ -33,7 +34,7 @@ const WINGS: Record<number, number> = {
 };
 const wingsAt = (f: number) => (f < OPEN ? 0.4 + (f >= 4 ? (f % 2 ? 0.08 : -0.06) : 0) : WINGS[f] ?? 0.5);
 
-// Height: rests, lifts a little on each downstroke, then launches upward.
+// Height: rests, lifts a little on each downstroke, then rises gently.
 const yAt = (f: number) => {
   if (f < 9) {
     return CY;
@@ -41,7 +42,7 @@ const yAt = (f: number) => {
   if (f < LAUNCH) {
     return CY - (f - 8) * 1.5;
   }
-  return CY - 6 - easeIn(span(f, LAUNCH - 0.5, LAUNCH + 3.5)) * 110;
+  return CY - 6 - easeOut(span(f, LAUNCH - 1, SHRINK + 3)) * 14;
 };
 
 const butterfly = (l: PixelBuffer, x: number, y: number, w: number, s: number, p: ReturnType<typeof ramp>, flash: boolean) => {
@@ -76,7 +77,8 @@ export const castButterfly = (hex: string): Effect => {
       (l) => {
         const pop = ([0.4, 1.3, 1] as number[])[f] ?? 1;
         const pinch = f >= 4 && f < OPEN ? 2 : 0;
-        const fly = age > 0 ? easeOut(span(age, 0, 5)) * 14 : 0;
+        // On the release the brackets retract into the corners (never leave the card).
+        const retract = age > 0 ? easeOut(span(age, 0, 4)) : 0;
         const c = age === 0 ? P.white : P.base;
         for (const [x, y, sx, sy] of [
           [CARD.x0, CARD.y0, 1, 1],
@@ -84,10 +86,13 @@ export const castButterfly = (hex: string): Effect => {
           [CARD.x0, CARD.y1, 1, -1],
           [CARD.x1, CARD.y1, -1, -1],
         ]) {
-          const px = x + sx * (pinch - fly) + (1 - pop) * sx * 8;
-          const py = y + sy * (pinch - fly) + (1 - pop) * sy * 8;
-          l.thickLine(px, py, px + sx * 8 * pop, py, 2, c);
-          l.thickLine(px, py, px, py + sy * 8 * pop, 2, c);
+          const px = x + sx * (pinch + 1);
+          const py = y + sy * (pinch + 1);
+          const arm = 8 * pop * (1 - retract);
+          if (arm >= 1) {
+            l.thickLine(px, py, px + sx * arm, py, 2, c);
+            l.thickLine(px, py, px, py + sy * arm, 2, c);
+          }
         }
       },
       { outline: age === 1 ? P.white : P.ink, fade: 1 - span(f, OPEN + 1, OPEN + 5) },
@@ -129,9 +134,10 @@ export const castButterfly = (hex: string): Effect => {
 
     // The butterfly.
     const y = yAt(f);
-    if (y > -30) {
+    const leave = popOut(span(f, SHRINK, SHRINK + 4));
+    if (leave > 0) {
       const pop = ([0.5, 1.15] as number[])[f] ?? 1;
-      b.layer((l) => butterfly(l, CX, y, wingsAt(f), SIZE * pop * (age === 0 ? 1.12 : 1), P, age === 0), {
+      b.layer((l) => butterfly(l, CX, y, wingsAt(f), SIZE * pop * leave * (age === 0 ? 1.12 : 1), P, age === 0), {
         outline: age === 1 ? P.white : P.ink,
       });
     }
@@ -148,8 +154,8 @@ export const castButterfly = (hex: string): Effect => {
           for (let i = 0; i < 8; i++) {
             const side = i % 2 === 0 ? -1 : 1;
             const row = i >> 1;
-            const x = CX + side * (14 + t * (4 + row * 1.2) + row * 3);
-            const yy = by + 2 + row * 4 + t * (1.5 + row * 0.6);
+            const x = CX + side * (14 + t * (2.5 + row * 0.6) + row * 2);
+            const yy = by + 2 + row * 4 + t * (1.2 + row * 0.4);
             if (t < 2) {
               l.rect(x, yy, 2, 2, i % 3 === 0 ? P.white : P.pale);
             } else {
@@ -161,26 +167,18 @@ export const castButterfly = (hex: string): Effect => {
             l.ellipseRing(CX, by + 12, r, r * 0.3, 1, P.pale, 1 - t / 4);
           }
         }
-        // Sparkle dust trailing the launch.
-        if (f > LAUNCH) {
-          for (let k = 1; k <= 6; k++) {
-            const tt = f - k * 0.5;
-            if (tt < LAUNCH) {
-              continue;
-            }
-            const ty = yAt(tt) + 10;
-            const life = f - tt;
-            if (ty < -4 || life > 4) {
-              continue;
-            }
-            l.sparkle(CX + (k % 2 ? 3 : -3), ty, life < 2 ? 2 : 1, P.light, P.white);
+        // Sparkle dust drifting off it as it rises.
+        if (f > LAUNCH && f < SHRINK + 4) {
+          for (let k = 1; k <= 4; k++) {
+            const tt = f - k * 0.6;
+            l.sparkle(CX + (k % 2 ? 4 : -4), yAt(tt) + 12 + k, k < 3 ? 2 : 1, P.light, P.white);
           }
         }
       },
       { outline: P.ink, fade: 1 - span(f, 18, 21) },
     );
 
-    b.layer((l) => finalTwinkle(l, CX, CARD.y0 + 6, f - 19, P), { outline: P.ink });
+    b.layer((l) => finalTwinkle(l, CX, yAt(SHRINK + 3), f - (SHRINK + 4), P), { outline: P.ink });
   };
 
   return withShake(effect, [[OPEN, 1]]);

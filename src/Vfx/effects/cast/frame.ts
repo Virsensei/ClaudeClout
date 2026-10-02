@@ -65,21 +65,22 @@ export const castFrame = (hex: string): Effect => {
             return;
           }
           const age = f - Math.ceil(((at / HALF) * 6) - 1);
-          const r = ([2, 5, 3.5] as number[])[age] ?? 3.5;
-          const cx = x + (x === CARD.x0 ? 1 : -1);
-          const cy = y + (y === CARD.y0 ? 1 : -1);
+          // Kept a few pixels inside the corner so the pop never touches the canvas edge.
+          const r = ([2, 4, 3] as number[])[age] ?? 3;
+          const cx = x + (x === CARD.x0 ? 3 : -3);
+          const cy = y + (y === CARD.y0 ? 3 : -3);
           const c = f === RELEASE ? P.white : P.light;
           l.polygon([[cx, cy - r], [cx + r, cy], [cx, cy + r], [cx - r, cy]], c);
           l.set(cx - 1, cy - 1, P.white);
         });
         // The two racing heads.
         if (f < 5) {
-          for (const p of [along(reach, 0), mirror(along(reach, 0))]) {
-            l.sparkle(p[0], p[1], 3, P.pale, P.white);
+          for (const p of [along(reach, 2), mirror(along(reach, 2))]) {
+            l.sparkle(p[0], p[1], 2, P.pale, P.white);
           }
         }
         if (f === 5) {
-          l.sparkle(CX, CARD.y0, 6, P.pale, P.white);
+          l.sparkle(CX, CARD.y0 + 5, 4, P.pale, P.white);
         }
       },
       { outline: f === RELEASE + 1 ? P.white : P.ink, fade: 1 - span(f, 12, 18) },
@@ -109,18 +110,25 @@ export const castFrame = (hex: string): Effect => {
     const age = f - RELEASE;
     doubleShock(b, CX, CY, age, P);
 
-    // The release: a beam shooting up out of the top of the card.
+    // The release: a beam shooting up to the top of the card, where it
+    // flares; then it draws itself up into the flare and is gone.
+    const TOP = CARD.y0 + 4;
     const width = ([14, 12, 10, 8, 6, 4, 3, 2, 1] as number[])[age] ?? 0;
     if (width > 0) {
-      const bottom = CY - easeIn(span(age, 1, 8)) * (CY + 6);
+      const bottom = CY - easeIn(span(age, 1, 8)) * (CY - TOP);
       b.layer(
         (l) => {
-          l.rect(CX - width / 2, -2, width, bottom + 2, P.base);
+          l.rect(CX - width / 2, TOP, width, bottom - TOP, P.base);
           if (width > 2) {
-            l.rect(CX - width / 2 + 1, -2, width - 2, bottom + 2, P.light);
+            l.rect(CX - width / 2 + 1, TOP, width - 2, bottom - TOP, P.light);
           }
           if (width > 4) {
-            l.rect(CX - width / 4, -2, width / 2, bottom + 2, P.white);
+            l.rect(CX - width / 4, TOP, width / 2, bottom - TOP, P.white);
+          }
+          // Flare where the beam meets the top of the card.
+          const flare = ([7, 6, 5, 4, 3, 2] as number[])[age] ?? 0;
+          if (flare > 0) {
+            l.sparkle(CX, TOP + 2, flare, P.pale, P.white);
           }
           if (age <= 1) {
             l.disc(CX, CY, age === 0 ? 12 : 8, P.white);
@@ -132,7 +140,7 @@ export const castFrame = (hex: string): Effect => {
 
     b.layer(
       (l) => {
-        risingSparkles(l, f, RELEASE + 2, CX, CY + 20, 76, 100, P, "cf-s", 16);
+        risingSparkles(l, f, RELEASE + 2, CX, CY + 8, 70, 66, P, "cf-s", 16);
       },
       { outline: P.ink },
     );
