@@ -1,14 +1,16 @@
 import type { Effect } from "../../PixelCanvas";
-import { CX, CY, easeIn, easeInOut, span } from "../../pixel";
+import { CX, CY, easeInOut, easeOut, span } from "../../pixel";
 import type { PixelBuffer } from "../../pixel";
 import type { Point } from "../classes/shared";
 import { ramp, rune, transform } from "../classes/shared";
 import { bouncePosition, doubleShock, finalTwinkle, popOut, withShake } from "./juice";
 
-// Perseverance (purple): quill. A quill swoops in and writes a glowing
-// sigil with sparks at the nib, lifts, then taps the final dot: the sigil
-// flashes, a rune ring snaps into place, ink splashes and bounces, it
-// glows, then folds away into a twinkle.
+// Perseverance (purple): quill. A quill pops in and writes a glowing
+// sigil with sparks at the nib and ink glitter drifting off the line,
+// lifts, then taps the final dot: the sigil flashes, a rune ring snaps
+// into place, ink splashes and bounces, the quill hops off and vanishes
+// in a sparkle, and the seal folds away into a twinkle. Nothing leaves
+// the card.
 
 const P = ramp("#D938F9");
 const TAU = Math.PI * 2;
@@ -27,8 +29,8 @@ const sigil = (t: number): Point => {
 };
 const DOT: Point = [0, 19];
 
-const quill = (l: PixelBuffer, x: number, y: number, tilt: number) => {
-  const t = transform(x, y, -1.05 + tilt, 1);
+const quill = (l: PixelBuffer, x: number, y: number, tilt: number, s = 1) => {
+  const t = transform(x, y, -1.05 + tilt, s);
   l.polygon(([[0, 0], [8, -3], [24, -4], [30, 0], [22, 3], [8, 3]] as Point[]).map(t), P.pale);
   l.line(...t([3, 0]), ...t([27, 0]), P.light);
   for (let k = 0; k < 3; k++) {
@@ -72,31 +74,55 @@ const effect: Effect = (b, f) => {
     );
   }
 
-  // The quill: swoops in, writes, lifts, taps the dot, flies away.
-  if (f <= TAP + 3) {
+  // The quill: pops in, writes, lifts, taps the dot, hops off and
+  // vanishes in a sparkle (it never flies out of the card).
+  const qs = f < 2 ? ([0.6, 1.15] as number[])[f] : f > TAP ? ([1, 1.15, 0.7, 0.3] as number[])[f - TAP - 1] ?? 0 : 1;
+  const [hx, hy] = DOT;
+  const hop = (k: number) => [CX + hx + 10 * k, CY - 2 + hy - 22 * k + 8 * k * k] as Point;
+  if (qs > 0) {
     let [x, y] = f < DONE ? sigil(Math.min(1, written)) : DOT;
     x += CX;
     y += CY - 2;
     let tilt = 0;
-    if (f === 0) {
-      x += 34;
-      y -= 26;
-      tilt = 0.4;
-    }
     if (f === DONE) {
       y -= 6; // lift before the tap
       tilt = -0.2;
     }
+    if (f === TAP) {
+      tilt = 0.12; // pressed down on the dot
+    }
     if (f > TAP) {
-      const away = easeIn(span(f, TAP, TAP + 3));
-      x += away * 52;
-      y -= away * 62;
+      [x, y] = hop(easeOut(span(f, TAP, TAP + 4)));
+      tilt = -(f - TAP) * 0.5;
     }
     b.layer(
       (l) => {
-        quill(l, x, y, tilt);
+        quill(l, x, y, tilt, qs);
         if (f > 0 && f < DONE) {
           l.sparkle(x, y, f % 2 ? 2 : 1, P.pale, P.white);
+        }
+      },
+      { outline: P.ink },
+    );
+  }
+  // The quill's little goodbye sparkle.
+  const qa = f - (TAP + 4);
+  if (qa >= 0 && qa <= 2) {
+    const [x, y] = hop(1);
+    b.layer((l) => l.sparkle(x + 8, y - 12, ([4, 3, 1] as number[])[qa], P.pale, P.white), { outline: P.ink });
+  }
+
+  // Ink glitter drifting down off the fresh line while it's written.
+  if (f >= 2 && f <= DONE + 2) {
+    b.layer(
+      (l) => {
+        for (let k = 1; k <= 5; k++) {
+          const tt = f - k * 0.8;
+          if (tt < 1) {
+            continue;
+          }
+          const [x, y] = sigil(Math.min(1, easeInOut(span(tt, 0.5, DONE))));
+          l.set(CX + x + ((k % 2) * 2 - 1), CY - 2 + y + k * 1.6, k < 3 ? P.white : P.pale);
         }
       },
       { outline: P.ink },

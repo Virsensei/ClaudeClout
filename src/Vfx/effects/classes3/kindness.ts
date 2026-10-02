@@ -1,13 +1,14 @@
 import type { Effect } from "../../PixelCanvas";
-import { CX, CY, easeOut, rand, span } from "../../pixel";
+import { CX, CY, rand, span } from "../../pixel";
 import type { PixelBuffer, RGB } from "../../pixel";
 import { plus, ramp } from "../classes/shared";
 import { bouncePosition, finalTwinkle, popOut, withShake } from "./juice";
 
-// Kindness (green): cooking. A frying pan slides in with a sizzling
-// pancake, dips, and flips it high into the air spinning; it lands back in
-// the pan with a squash and a sizzle splash, a pat of butter drops on and
-// melts, steam and healing pluses rise, and it all pops away.
+// Kindness (green): cooking. A frying pan pops in with a sizzling
+// pancake, dips, and flips it high into the air spinning, with a
+// twinkle at the top; it lands back in the pan with a squash,
+// a flash and a sizzle splash, a pat of butter drops on and melts, steam
+// and healing pluses rise, and it all pops away. Stays inside the card.
 
 const P = ramp("#00FA3E");
 const FLIP = 5;
@@ -48,15 +49,16 @@ const pancake = (l: PixelBuffer, x: number, y: number, rx: number, ry: number, s
 
 const effect: Effect = (b, f) => {
   const s = popOut(span(f, POP, POP + 4));
-  const slide = -44 * (1 - easeOut(span(f, -1, 2)));
-  const panX = CX - 8 + slide;
-  const jerk = ({ 4: 3, 5: -3, 6: -1 } as Record<number, number>)[f] ?? 0;
+  const panX = CX - 8;
+  // Pops in, dips down to wind up, jerks up to flip, and dips on the catch.
+  const jerk = ({ 3: 2, 4: 4, 5: -4, 6: -1, 11: 2, 12: 1 } as Record<number, number>)[f] ?? 0;
   const panY = PAN_Y + jerk;
+  const enter = ([0.75, 1.12] as number[])[f] ?? 1;
 
   if (s > 0) {
     b.layer(
       (l) => {
-        pan(l, panX, panY, s);
+        pan(l, panX, panY, s * enter);
         // Pancake: sizzling, flipping through the air, landing.
         let px = panX;
         let py = panY - 4;
@@ -65,15 +67,20 @@ const effect: Effect = (b, f) => {
         let spin = 0;
         if (f >= FLIP && f < CATCH) {
           const t = span(f, FLIP, CATCH);
-          py = panY - 4 - 4 * 46 * t * (1 - t);
-          spin = t * Math.PI * 3;
-          ry = 1 + 4 * Math.abs(Math.cos(spin));
+          py = panY - 4 - 4 * 52 * t * (1 - t);
+          spin = t * Math.PI * 4;
+          ry = 1 + 4.5 * Math.abs(Math.cos(spin));
+          rx = 14;
           px += Math.sin(t * Math.PI) * 4;
         } else if (f >= CATCH) {
           const squash: Record<number, [number, number]> = { 11: [16, 2.2], 12: [12, 4.6] };
           [rx, ry] = squash[f] ?? [13, 3.5];
         }
-        pancake(l, px, py, rx * s, ry * s, spin, f === CATCH);
+        pancake(l, px, py, rx * s * enter, ry * s * enter, spin, f === CATCH);
+        // A twinkle at the top of the flip.
+        if (f === FLIP + 3) {
+          l.sparkle(px + 15, py - 4, 3, P.pale, P.white);
+        }
 
         // Butter: drops on, squishes, melts.
         if (f >= BUTTER - 2) {
@@ -108,12 +115,12 @@ const effect: Effect = (b, f) => {
   // Flat shockwaves rolling out along the pan on the catch.
   const age = f - CATCH;
   if (age >= 0 && age <= 4) {
-    const r = 24 + (age / 4) * 30;
+    const r = 22 + (age / 4) * 10;
     b.ellipseRing(panX, panY, r, r * 0.25, 1, P.white, 1 - (age / 4) * 0.7);
   }
   if (age >= 0 && age <= 7) {
     const t = age / 7;
-    const r = 22 + (1 - (1 - t) ** 3) * 24;
+    const r = 20 + (1 - (1 - t) ** 3) * 12;
     b.ellipseRing(panX, panY, r, r * 0.25, 3 - 2 * t, P.pale, 1 - t * 0.85);
   }
 

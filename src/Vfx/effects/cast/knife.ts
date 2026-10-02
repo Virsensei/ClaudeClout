@@ -7,14 +7,15 @@ import { chunk, doubleShock, finalTwinkle, popOut, withShake } from "../classes3
 
 // Cast, "Patient Cut" (Patience's Toy Knife): a knife pops in and a ring
 // of clock ticks lights up one by one while it slowly draws back and a
-// glint runs up the blade. Waited for... then one clean swing: a slash
-// cuts across the card (flash, shake, shockwave), the cut opens and
-// throws off shards, the knife settles, glints, and shrinks away into a
+// glint runs up the blade. Then one clean swing leaves a thin cut across
+// the card... which waits two beats, then bursts open (flash, hit-stop,
+// shake, shockwave, shards). The knife glints and shrinks away into a
 // twinkle. Everything stays inside the card.
 
 const CARD = { x0: 15, y0: 4, x1: 94, y1: 121 };
 const TAU = Math.PI * 2;
 const STRIKE = 7;
+const BURST = 10; // the delayed burst of the cut
 const POP = 15;
 const SIZE = 1.15;
 const PIVOT: Point = [CX, CY + 4];
@@ -31,7 +32,7 @@ const angleAt = (f: number) => {
   if (f < STRIKE) {
     return 0.25 + (READY - 0.25) * easeInOut(span(f, 1, 6));
   }
-  const after: Record<number, number> = { 7: END, 8: END + 0.22, 9: END - 0.08 };
+  const after: Record<number, number> = { 7: END, 8: END + 0.22, 9: END - 0.08, 10: END + 0.14, 11: END - 0.05 };
   return after[f] ?? END + Math.sin(f * 0.9) * 0.03;
 };
 
@@ -70,28 +71,38 @@ export const castKnife = (hex: string): Effect => {
 
   const effect: Effect = (b, f) => {
     const age = f - STRIKE;
+    const burst = f - BURST;
     const angle = angleAt(f);
 
-    // The clock ticks: one lights up every frame while the knife waits.
+    // The clock ticks: one lights up every frame while the knife waits,
+    // the last on the swing; all flash and spread on the burst.
+    b.layer((l) => {
+      for (let i = 0; i < TICKS; i++) {
+        const a = -Math.PI / 2 + (i * TAU) / TICKS;
+        if (age < 0 && i > f) {
+          l.rect(CX + Math.cos(a) * 33 - 1, CY + Math.sin(a) * 46 - 1, 2, 2, P.base);
+        }
+      }
+    });
     b.layer(
       (l) => {
-        const out = age > 0 ? easeOut(span(age, 0, 4)) * 4 : 0;
+        const out = burst > 0 ? easeOut(span(burst, 0, 4)) * 4 : 0;
         for (let i = 0; i < TICKS; i++) {
           const a = -Math.PI / 2 + (i * TAU) / TICKS;
           const x = CX + Math.cos(a) * (33 + out);
           const y = CY + Math.sin(a) * (46 + out);
-          const lit = age >= 0 || i <= f;
-          if (!lit) {
-            l.rect(x - 1, y - 1, 2, 2, P.deep);
+          if (age < 0 && i > f) {
             continue;
           }
-          const fresh = age < 0 && i === f;
-          const r = age === 0 ? 3.5 : fresh ? 3 : 2;
-          l.polygon([[x, y - r], [x + r, y], [x, y + r], [x - r, y]], age === 0 || fresh ? P.white : P.pale);
+          const fresh = (age < 0 && i === f) || (age === 0 && i === TICKS - 1);
+          const r = burst === 0 ? 3.5 : fresh ? 3 : burst > 0 ? 2.5 : 2;
+          // Lit ticks blink while the cut waits to burst.
+          const blink = age > 0 && burst < 0 && (i + f) % 2 === 0;
+          l.polygon([[x, y - r], [x + r, y], [x, y + r], [x - r, y]], burst === 0 || fresh || blink ? P.white : P.pale);
           l.set(x, y, P.white);
         }
       },
-      { outline: age === 1 ? P.white : P.ink, fade: 1 - span(f, STRIKE + 1, STRIKE + 5) },
+      { outline: burst === 1 ? P.white : P.ink, fade: 1 - span(f, BURST + 1, BURST + 5) },
     );
 
     // Swing smear: a crescent from where it waited to where it ended.
@@ -102,16 +113,16 @@ export const castKnife = (hex: string): Effect => {
           const to = END - Math.PI / 2;
           const outer = 31 * SIZE + 1;
           const N = 14;
-          const start = ([0, 0.45, 0.75] as number[])[age];
+          const start = ([0, 0.45] as number[])[age];
           for (let i = 0; i < N; i++) {
             const t = (i + 1) / N;
             if (t < start) {
               continue;
             }
-            const th = (([5, 3.5, 2] as number[])[age] + t * ([13, 8, 4] as number[])[age]);
+            const th = ([5, 3.5] as number[])[age] + t * ([13, 8] as number[])[age];
             const a0 = from + (to - from) * (i / N);
             const a1 = from + (to - from) * t + 0.02;
-            l.ring(PIVOT[0], PIVOT[1], outer - th / 2, th, ([P.pale, P.light, P.base] as RGB[])[age], 1, a0, a1);
+            l.ring(PIVOT[0], PIVOT[1], outer - th / 2, th, ([P.pale, P.light] as RGB[])[age], 1, a0, a1);
             if (age === 0) {
               l.ring(PIVOT[0], PIVOT[1], outer - 2, 3, P.white, 1, a0, a1);
             }
@@ -121,8 +132,8 @@ export const castKnife = (hex: string): Effect => {
       );
     }
 
-    // The slash across the card, then the cut opening up.
-    if (age >= 0 && age <= 6) {
+    // The cut across the card: thin and waiting, then it bursts open.
+    if (age >= 0 && burst <= 6) {
       b.layer(
         (l) => {
           const [x0, y0] = S0;
@@ -132,47 +143,60 @@ export const castKnife = (hex: string): Effect => {
           const ny = (x1 - x0) / len;
           const mx = (x0 + x1) / 2;
           const my = (y0 + y1) / 2;
-          const lens = (w: number, ox: number, oy: number, c: RGB) =>
-            l.polygon([[x0 + ox, y0 + oy], [mx + nx * w + ox, my + ny * w + oy], [x1 + ox, y1 + oy], [mx - nx * w + ox, my - ny * w + oy]], c);
-          if (age <= 1) {
-            lens(age === 0 ? 5 : 4, 0, 0, age === 0 ? P.white : P.pale);
-            lens(age === 0 ? 2.5 : 1.5, 0, 0, P.white);
+          const lens = (w: number, ox: number, oy: number, c: RGB, k = 1) =>
+            l.polygon(
+              [
+                [mx + (x0 - mx) * k + ox, my + (y0 - my) * k + oy],
+                [mx + nx * w + ox, my + ny * w + oy],
+                [mx + (x1 - mx) * k + ox, my + (y1 - my) * k + oy],
+                [mx - nx * w + ox, my - ny * w + oy],
+              ],
+              c,
+            );
+          if (burst < 0) {
+            // Drawn by the swing, then holding its breath.
+            lens(([2.5, 1.5, 1.5] as number[])[age], 0, 0, age === 0 ? P.white : f % 2 ? P.pale : P.white);
+          } else if (burst <= 1) {
+            lens(burst === 0 ? 7 : 5, 0, 0, burst === 0 ? P.white : P.pale, 1.08);
+            lens(burst === 0 ? 3.5 : 2, 0, 0, P.white, 1.08);
           } else {
-            const gap = (age - 1) * 1.4;
-            const w = ([2.5, 2, 1.5, 1, 1] as number[])[age - 2];
-            const c = age <= 3 ? P.pale : P.light;
+            const gap = (burst - 1) * 1.6;
+            const w = ([3, 2.5, 2, 1.5, 1] as number[])[burst - 2];
+            const c = burst <= 3 ? P.pale : P.light;
             lens(w, nx * gap, ny * gap, c);
             lens(w, -nx * gap, -ny * gap, c);
           }
           // Sparkles running out along the cut.
-          if (age >= 1 && age <= 5) {
+          if (burst >= 1 && burst <= 5) {
             for (const dir of [-1, 1]) {
-              const t = 0.5 + dir * (0.12 + age * 0.08);
-              l.sparkle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, age < 3 ? 2 : 1, P.pale, P.white);
+              const t = 0.5 + dir * (0.12 + burst * 0.08);
+              l.sparkle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, burst < 3 ? 3 : 1, P.pale, P.white);
             }
           }
           // Shards thrown off both sides of the cut.
-          if (age >= 1) {
-            for (let i = 0; i < 12; i++) {
-              const t = 0.15 + (i / 11) * 0.7;
+          if (burst >= 1) {
+            for (let i = 0; i < 14; i++) {
+              const t = 0.12 + (i / 13) * 0.76;
               const side = i % 2 === 0 ? 1 : -1;
-              const d = easeOut(span(age, 0, 6)) * (5 + rand(`kn-d-${i}`) * 9);
+              const d = easeOut(span(burst, 0, 6)) * (6 + rand(`kn-d-${i}`) * 10);
               const x = x0 + (x1 - x0) * t + nx * side * d;
-              const y = y0 + (y1 - y0) * t + ny * side * d + age * 0.6;
-              chunk(l, x, y, age < 4 ? 2 : 1, i % 3 === 0 ? P.white : P.pale);
+              const y = y0 + (y1 - y0) * t + ny * side * d + burst * 0.6;
+              chunk(l, x, y, burst < 4 ? 3 : 2, i % 3 === 0 ? P.white : P.pale);
             }
           }
         },
-        { outline: P.ink, fade: 1 - span(f, STRIKE + 3, STRIKE + 7) },
+        { outline: burst === 1 ? P.white : P.ink, fade: 1 - span(f, BURST + 3, BURST + 7) },
       );
     }
-    doubleShock(b, CX, CY, age, P, 0.8);
+    doubleShock(b, CX, CY, burst, P, 0.85);
 
     // The knife.
     const s = popOut(span(f, POP, POP + 4));
     if (s > 0) {
-      const pop = ([0.5, 1.15] as number[])[f] ?? (age === 0 ? 1.1 : 1);
-      b.layer((l) => knife(l, angle, SIZE * pop * s, P, age === 0), { outline: age === 1 ? P.white : P.ink });
+      const pop = ([0.75, 1.15] as number[])[f] ?? (age === 0 || burst === 0 ? 1.1 : 1);
+      b.layer((l) => knife(l, angle, SIZE * pop * s, P, age === 0 || burst === 0), {
+        outline: age === 1 || burst === 1 ? P.white : P.ink,
+      });
     }
 
     b.layer(
@@ -185,20 +209,21 @@ export const castKnife = (hex: string): Effect => {
           const [x, y] = transform(PIVOT[0], PIVOT[1], angle, SIZE)([-1.5, -31]);
           l.sparkle(x, y, 4, P.pale, P.white);
         }
-        // And once more while it holds after the cut.
-        if (f >= 11 && f <= 13) {
-          glint(l, angle, SIZE, (f - 11) / 2, P);
+        // And once more while it holds after the burst.
+        if (f >= BURST + 3 && f <= BURST + 5) {
+          glint(l, angle, SIZE, (f - BURST - 3) / 2, P);
         }
-        risingSparkles(l, f, STRIKE + 3, CX, CY, 60, 70, P, "kn-s", 12);
+        risingSparkles(l, f, BURST + 2, CX, CY, 60, 70, P, "kn-s", 12);
       },
-      { outline: P.ink, fade: 1 - span(f, 17, 21) },
+      { outline: P.ink, fade: 1 - span(f, 18, 21) },
     );
 
     b.layer((l) => finalTwinkle(l, PIVOT[0], PIVOT[1] - 4, f - (POP + 4), P), { outline: P.ink });
   };
 
   return withShake(effect, [
-    [STRIKE, 1.5],
-    [STRIKE + 2, 0.4],
+    [STRIKE, 0.6],
+    [BURST, 1.5],
+    [BURST + 2, 0.4],
   ]);
 };

@@ -9,8 +9,8 @@ import { bouncePosition, chunk, doubleShock, finalTwinkle, popOut, withShake } f
 // the card, a boxing glove pops in low, winds up (drops, squashes,
 // trembles) while speed lines rush in, then uppercuts: it rockets up and
 // stretches, a comic impact burst explodes at the knuckles (flash,
-// hit-stop, heavy shake), it springs back, holds with embers, and pops
-// away into a twinkle.
+// hit-stop, heavy shake), it springs back, bounces on its toes like a
+// boxer with embers rising, and pops away into a twinkle.
 
 const CARD = { x0: 15, y0: 4, x1: 94, y1: 121 };
 const TAU = Math.PI * 2;
@@ -150,7 +150,7 @@ export const castGlove = (hex: string): Effect => {
     if (s > 0) {
       let y = REST_Y;
       let x = CX;
-      let sx = ([0.5, 1.15] as number[])[f] ?? 1;
+      let sx = ([0.75, 1.15] as number[])[f] ?? 1;
       let sy = sx;
       if (f >= 2 && f < PUNCH) {
         y = REST_Y + easeOut(span(f, 2, 4)) * 9;
@@ -168,7 +168,17 @@ export const castGlove = (hex: string): Effect => {
         sx = 1.15;
         sy = 0.88;
       } else if (age >= 3) {
-        y = CY + 25 + (f >= 10 ? Math.round(Math.sin(f * 1.4)) : 0);
+        // Boxer bounce: up and stretched, down and squashed, then ready.
+        const bounce: Record<number, [number, number, number]> = {
+          10: [-4, 0.92, 1.1],
+          11: [1, 1.12, 0.88],
+          12: [-3, 0.95, 1.06],
+          13: [1, 1.08, 0.92],
+        };
+        const [dy, bx, by] = bounce[f] ?? [0, 1, 1];
+        y = CY + 25 + dy;
+        sx = bx;
+        sy = by;
       }
       b.layer((l) => glove(l, x, y, sx * s * SIZE, sy * s * SIZE, P, age === 0), {
         outline: age === 1 ? P.white : P.ink,
@@ -178,19 +188,23 @@ export const castGlove = (hex: string): Effect => {
     b.layer(
       (l) => {
         // Sparks flying from the impact, falling and bouncing.
-        if (age >= 0 && age <= 11) {
+        if (age >= 0 && age <= 7) {
           for (let i = 0; i < 10; i++) {
             const a = -Math.PI / 2 + (i - 4.5) * 0.5;
             const v = 3 + rand(`gs-v-${i}`) * 3;
             const [x, y] = bouncePosition(BX, BY, Math.cos(a) * v, Math.sin(a) * v, age, FLOOR);
-            if (x < 4 || x > 105 || y < 4) {
+            if (x < 20 || x > 89 || y < 10) {
               continue;
             }
-            chunk(l, x, y, age < 4 ? 3 : 2, i % 3 === 0 ? P.white : i % 3 === 1 ? P.pale : P.light);
+            if (age < 4) {
+              chunk(l, x, y, 3, i % 3 === 0 ? P.white : i % 3 === 1 ? P.pale : P.light);
+            } else if ((i + age) % 2 === 0) {
+              l.sparkle(x, y, 1, P.light, P.white);
+            }
           }
         }
         // Embers rising off the glove while it holds.
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 7; i++) {
           const born = PUNCH + 4 + rand(`ge-b-${i}`) * 6;
           const t = f - born;
           if (t < 0 || t > Math.min(5, 21 - born)) {
@@ -200,10 +214,18 @@ export const castGlove = (hex: string): Effect => {
           const y = CY - 14 - t * 4;
           l.rect(x, y, t < 2 ? 2 : 1, t < 2 ? 2 : 1, t < 2 ? P.pale : P.light);
         }
-        // Knuckle twinkles.
-        if (f >= PUNCH + 4 && f < POP) {
-          const k = (f - PUNCH - 4) % 3;
-          l.sparkle(CX - 4 + k * 6, CY - 8, 2, P.pale, P.white);
+        // Little dust puffs where it lands from each bounce.
+        for (const land of [11, 13]) {
+          const t = f - land;
+          if (t >= 0 && t <= 2) {
+            for (const side of [-1, 1]) {
+              l.sparkle(CX + side * (13 + t * 4), CY + 24 - t, ([2, 1, 1] as number[])[t], P.pale, P.white);
+            }
+          }
+        }
+        // A ready glint on the knuckles.
+        if (f === 14) {
+          l.sparkle(CX + 4, CY - 4, 3, P.pale, P.white);
         }
       },
       { outline: P.ink, fade: 1 - span(f, 17, 21) },
