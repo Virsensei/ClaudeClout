@@ -43,6 +43,7 @@ import { integrity as classV3Integrity } from "./effects/classes3/integrity";
 import { patience as classV3Patience } from "./effects/classes3/patience";
 import { kindness as classV3Kindness } from "./effects/classes3/kindness";
 import { justice as classV3Justice } from "./effects/classes3/justice";
+import { castEffects } from "./effects/cast";
 
 // Pixel-art card VFX for Undercards: 220x250, 16 fps, 1.5 s, transparent.
 export const VFX_FPS = 16;
@@ -99,6 +100,8 @@ const effects: Record<string, Effect> = {
   ClassV3Patience: classV3Patience,
   ClassV3Kindness: classV3Kindness,
   ClassV3Justice: classV3Justice,
+  // Spell-card cast effects: Frame, Seal and Burst in every class colour.
+  ...castEffects,
 };
 
 const Vfx: React.FC<{ effect: string }> = ({ effect }) => (

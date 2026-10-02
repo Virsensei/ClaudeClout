@@ -45,6 +45,9 @@ fully transparent, and fades use dithering.
 - Third set with extra game feel (`VfxClassV3Determination` … `VfxClassV3Justice`): `src/Vfx/effects/classes3/`.
   Kindness is a cooking spell (pancake flip) and Integrity a butterfly. Shake, bouncing particles,
   pop-out exits and the final twinkle are in `juice.ts`; wrap an effect in `withShake(effect, [[frame, strength]])`.
+- Spell-card cast effects (`VfxCastFrame<Class>`, `VfxCastSeal<Class>`, `VfxCastBurst<Class>`): `src/Vfx/effects/cast/`.
+  Three designs that only say "this card was cast", each in every class colour. The colours are the
+  `CLASS_COLORS` table in `cast/index.ts`; change one and all three designs follow.
 - Effects: `src/Vfx/effects/*.ts`. Each one is a function that draws a single frame (`f` = 0 to 23);
   colors are in the `C` palette at the top of each file.
 - Drawing helpers (rings, lines, sparkles, outline, dither fade): `src/Vfx/pixel.ts`.
