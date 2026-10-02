@@ -40,6 +40,13 @@ const ALL = [
   "ClassV2Patience",
   "ClassV2Kindness",
   "ClassV2Justice",
+  "ClassV3Determination",
+  "ClassV3Bravery",
+  "ClassV3Perseverance",
+  "ClassV3Integrity",
+  "ClassV3Patience",
+  "ClassV3Kindness",
+  "ClassV3Justice",
 ];
 const args = process.argv.slice(2);
 const flags = args.filter((a) => a.startsWith("--"));

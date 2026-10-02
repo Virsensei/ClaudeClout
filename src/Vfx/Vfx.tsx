@@ -36,6 +36,13 @@ import { integrity as classV2Integrity } from "./effects/classes2/integrity";
 import { patience as classV2Patience } from "./effects/classes2/patience";
 import { kindness as classV2Kindness } from "./effects/classes2/kindness";
 import { justice as classV2Justice } from "./effects/classes2/justice";
+import { determination as classV3Determination } from "./effects/classes3/determination";
+import { bravery as classV3Bravery } from "./effects/classes3/bravery";
+import { perseverance as classV3Perseverance } from "./effects/classes3/perseverance";
+import { integrity as classV3Integrity } from "./effects/classes3/integrity";
+import { patience as classV3Patience } from "./effects/classes3/patience";
+import { kindness as classV3Kindness } from "./effects/classes3/kindness";
+import { justice as classV3Justice } from "./effects/classes3/justice";
 
 // Pixel-art card VFX for Undercards: 220x250, 16 fps, 1.5 s, transparent.
 export const VFX_FPS = 16;
@@ -84,6 +91,14 @@ const effects: Record<string, Effect> = {
   ClassV2Patience: classV2Patience,
   ClassV2Kindness: classV2Kindness,
   ClassV2Justice: classV2Justice,
+  // Third set: extra "game feel" (anticipation, hit-stop, shake, bounces).
+  ClassV3Determination: classV3Determination,
+  ClassV3Bravery: classV3Bravery,
+  ClassV3Perseverance: classV3Perseverance,
+  ClassV3Integrity: classV3Integrity,
+  ClassV3Patience: classV3Patience,
+  ClassV3Kindness: classV3Kindness,
+  ClassV3Justice: classV3Justice,
 };
 
 const Vfx: React.FC<{ effect: string }> = ({ effect }) => (

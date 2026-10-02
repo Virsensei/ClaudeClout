@@ -42,6 +42,9 @@ fully transparent, and fades use dithering.
   Same style as the Cast Magic / Freeze / Silence effects; the class colour is the `ramp("#hex")` line at the top.
 - Emblem-style class spells, second set (`VfxClassV2Determination` … `VfxClassV2Justice`): `src/Vfx/effects/classes2/`
   (wings, explosion, quill, crown, moon, potion, gavel).
+- Third set with extra game feel (`VfxClassV3Determination` … `VfxClassV3Justice`): `src/Vfx/effects/classes3/`.
+  Kindness is a cooking spell (pancake flip) and Integrity a butterfly. Shake, bouncing particles,
+  pop-out exits and the final twinkle are in `juice.ts`; wrap an effect in `withShake(effect, [[frame, strength]])`.
 - Effects: `src/Vfx/effects/*.ts`. Each one is a function that draws a single frame (`f` = 0 to 23);
   colors are in the `C` palette at the top of each file.
 - Drawing helpers (rings, lines, sparkles, outline, dither fade): `src/Vfx/pixel.ts`.

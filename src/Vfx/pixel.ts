@@ -279,6 +279,20 @@ export class PixelBuffer {
     }
   }
 
+  // Copies every opaque pixel of `other`, shifted by (dx, dy).
+  pasteOffset(other: PixelBuffer, dx: number, dy: number) {
+    const ox = Math.round(dx);
+    const oy = Math.round(dy);
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        const i = (y * this.w + x) * 4;
+        if (other.data[i + 3] > 0) {
+          this.set(x + ox, y + oy, [other.data[i], other.data[i + 1], other.data[i + 2]]);
+        }
+      }
+    }
+  }
+
   // Draws `fn` on its own layer, optionally outlines and dither-fades it,
   // then puts it on top of this buffer.
   layer(
