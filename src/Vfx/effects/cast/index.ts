@@ -3,6 +3,7 @@ import { castBurst } from "./burst";
 import { castButterfly } from "./butterfly";
 import { castFrame } from "./frame";
 import { castGlove } from "./glove";
+import { castKnife } from "./knife";
 import { castSeal } from "./seal";
 import { castSwarm } from "./swarm";
 
@@ -38,3 +39,5 @@ castEffects.CastGloveBravery = castGlove(CLASS_COLORS.Bravery);
 castEffects.CastButterflyIntegrity = castButterfly(CLASS_COLORS.Integrity);
 // Integrity: a swarm of little butterflies.
 castEffects.CastSwarmIntegrity = castSwarm(CLASS_COLORS.Integrity);
+// Patience: a toy knife that waits for its moment, then cuts across the card.
+castEffects.CastKnifePatience = castKnife(CLASS_COLORS.Patience);
