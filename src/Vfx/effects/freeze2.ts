@@ -17,7 +17,10 @@ const C = {
 
 const TAU = Math.PI * 2;
 const SNAP = 11;
-const INSET = 3;
+// The card the ice frame hugs: 160x235 centred in the 220x250 canvas.
+// In 2x art pixels that is columns 15-94 (px 30-189) and rows 4-121
+// (px 8-243; 235 is odd, so the frame overlaps the card's bottom by 1px).
+const CARD = { x0: 15, y0: 4, x1: 94, y1: 121 };
 
 // A frost fern: a main stem with side branches and tiny twigs, growing out
 // from (x, y) along `angle`. `grow` is 0 to 1.
@@ -57,30 +60,28 @@ const fern = (
 
 const FERNS: [number, number, number, number, number][] = [
   // x, y, angle (degrees), length, delay
-  [INSET, INSET, 45, 34, 0],
-  [GRID_W - 1 - INSET, INSET, 135, 34, 0.5],
-  [INSET, GRID_H - 1 - INSET, -45, 34, 0.3],
-  [GRID_W - 1 - INSET, GRID_H - 1 - INSET, -135, 34, 0.8],
-  [INSET, CY, 0, 18, 1.5],
-  [GRID_W - 1 - INSET, CY, 180, 18, 1.8],
-  [CX, GRID_H - 1 - INSET, -90, 16, 2],
+  [CARD.x0, CARD.y0, 50, 32, 0],
+  [CARD.x1, CARD.y0, 130, 32, 0.5],
+  [CARD.x0, CARD.y1, -50, 32, 0.3],
+  [CARD.x1, CARD.y1, -130, 32, 0.8],
+  [CARD.x0, CY, 0, 16, 1.5],
+  [CARD.x1, CY, 180, 16, 1.8],
+  [CX, CARD.y1, -90, 16, 2],
 ];
 
 // x, length, delay
 const ICICLES: [number, number, number][] = [
-  [12, 12, 0.5],
-  [22, 20, 0],
-  [31, 10, 1],
-  [42, 16, 0.4],
+  [24, 12, 0.5],
+  [33, 20, 0],
+  [42, 11, 1],
   [55, 24, 0.2],
-  [67, 14, 0.8],
-  [77, 19, 0.1],
-  [88, 11, 0.9],
-  [98, 17, 0.6],
+  [66, 15, 0.8],
+  [76, 19, 0.1],
+  [86, 12, 0.6],
 ];
 
 const icicle = (b: PixelBuffer, x: number, length: number) => {
-  const top = INSET + 2;
+  const top = CARD.y0 + 2;
   b.polygon(
     [
       [x - 3, top],
@@ -103,10 +104,7 @@ const icicle = (b: PixelBuffer, x: number, length: number) => {
 const frame = (b: PixelBuffer, flash: boolean) => {
   const outer = flash ? C.white : C.mid;
   const inner = flash ? C.white : C.light;
-  const x0 = INSET;
-  const y0 = INSET;
-  const x1 = GRID_W - 1 - INSET;
-  const y1 = GRID_H - 1 - INSET;
+  const { x0, y0, x1, y1 } = CARD;
   for (let t = 0; t < 3; t++) {
     const c = t === 1 ? inner : outer;
     b.line(x0 + t, y0 + t, x1 - t, y0 + t, c);
@@ -114,19 +112,19 @@ const frame = (b: PixelBuffer, flash: boolean) => {
     b.line(x0 + t, y0 + t, x0 + t, y1 - t, c);
     b.line(x1 - t, y0 + t, x1 - t, y1 - t, c);
   }
-  // Crystal chunks on the corners.
+  // Crystal chunks on the corners, nudged inwards so they stay on the canvas.
   for (const [cx, cy] of [
-    [x0, y0],
-    [x1, y0],
-    [x0, y1],
-    [x1, y1],
+    [x0 + 1, y0 + 1],
+    [x1 - 1, y0 + 1],
+    [x0 + 1, y1 - 2],
+    [x1 - 1, y1 - 2],
   ]) {
     b.polygon(
       [
-        [cx, cy - 6],
-        [cx + 6, cy],
-        [cx, cy + 6],
-        [cx - 6, cy],
+        [cx, cy - 4],
+        [cx + 4, cy],
+        [cx, cy + 4],
+        [cx - 4, cy],
       ],
       flash ? C.white : C.light,
     );
@@ -253,20 +251,20 @@ export const freeze2: Effect = (b, f) => {
   // Shockwave when the card snaps frozen.
   if (f >= SNAP && f <= SNAP + 5) {
     const t = (f - SNAP) / 5;
-    b.ring(CX, CY, 20 + easeOut(t) * 30, 3 - 2 * t, C.pale, 1 - t * 0.85);
+    b.ring(CX, CY, 20 + easeOut(t) * 18, 3 - 2 * t, C.pale, 1 - t * 0.85);
   }
 
   // Drips falling from the icicle tips.
   b.layer(
     (l) => {
       [
-        [22, 20, 13],
+        [33, 20, 13],
         [55, 24, 15],
-        [77, 19, 17],
+        [76, 19, 17],
       ].forEach(([x, length, at]) => {
         const t = f - at;
         if (t >= 0 && t <= 5) {
-          l.rect(x, INSET + 3 + length + t * t * 1.5, 1, 2, C.pale);
+          l.rect(x, CARD.y0 + 3 + length + t * t * 1.5, 1, 2, C.pale);
         }
       });
     },
@@ -283,8 +281,16 @@ export const freeze2: Effect = (b, f) => {
           continue;
         }
         const onEdge = i % 2 === 0;
-        const x = onEdge ? (i % 4 === 0 ? INSET + 2 : GRID_W - INSET - 3) : 10 + rand(`fs-x-${i}`) * 90;
-        const y = (onEdge ? 10 + rand(`fs-y-${i}`) * 105 : CY + (rand(`fs-y-${i}`) - 0.5) * 40) - t * 2;
+        const x = onEdge
+          ? i % 4 === 0
+            ? CARD.x0 + 1
+            : CARD.x1 - 1
+          : CARD.x0 + 6 + rand(`fs-x-${i}`) * (CARD.x1 - CARD.x0 - 12);
+        const y =
+          (onEdge
+            ? CARD.y0 + 6 + rand(`fs-y-${i}`) * (CARD.y1 - CARD.y0 - 12)
+            : CY + (rand(`fs-y-${i}`) - 0.5) * 40) -
+          t * 2;
         l.sparkle(x, y, [1, 2, 1, 1][Math.floor(t)] ?? 1, C.light, C.white);
       }
     },
