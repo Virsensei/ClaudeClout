@@ -26,6 +26,13 @@ const ALL = [
   "FlowPatience",
   "FlowKindness",
   "FlowJustice",
+  "ClassDetermination",
+  "ClassBravery",
+  "ClassPerseverance",
+  "ClassIntegrity",
+  "ClassPatience",
+  "ClassKindness",
+  "ClassJustice",
 ];
 const args = process.argv.slice(2);
 const flags = args.filter((a) => a.startsWith("--"));

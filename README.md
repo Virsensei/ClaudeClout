@@ -38,6 +38,8 @@ fully transparent, and fades use dithering.
 - Energy-flow class spells, no hearts (`VfxFlowDetermination` … `VfxFlowJustice`): `src/Vfx/effects/flow/`.
   Each builds a white-hot-to-deep palette from its class colour via `palette("#hex")`; trails, curves,
   lightning and orbs are in `shared.ts`.
+- Emblem-style class spells, no hearts (`VfxClassDetermination` … `VfxClassJustice`): `src/Vfx/effects/classes/`.
+  Same style as the Cast Magic / Freeze / Silence effects; the class colour is the `ramp("#hex")` line at the top.
 - Effects: `src/Vfx/effects/*.ts`. Each one is a function that draws a single frame (`f` = 0 to 23);
   colors are in the `C` palette at the top of each file.
 - Drawing helpers (rings, lines, sparkles, outline, dither fade): `src/Vfx/pixel.ts`.
