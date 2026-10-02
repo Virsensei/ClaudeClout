@@ -35,6 +35,9 @@ fully transparent, and fades use dithering.
 - Class spells (`VfxSpellDetermination`, `…Bravery`, `…Perseverance`, `…Integrity`, `…Patience`,
   `…Kindness`, `…Justice`): `src/Vfx/effects/souls/`. Each builds its palette from one class colour
   via `ramp("#hex")` at the top of its file; the SOUL heart, stars and pluses are in `shared.ts`.
+- Energy-flow class spells, no hearts (`VfxFlowDetermination` … `VfxFlowJustice`): `src/Vfx/effects/flow/`.
+  Each builds a white-hot-to-deep palette from its class colour via `palette("#hex")`; trails, curves,
+  lightning and orbs are in `shared.ts`.
 - Effects: `src/Vfx/effects/*.ts`. Each one is a function that draws a single frame (`f` = 0 to 23);
   colors are in the `C` palette at the top of each file.
 - Drawing helpers (rings, lines, sparkles, outline, dither fade): `src/Vfx/pixel.ts`.

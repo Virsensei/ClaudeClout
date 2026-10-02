@@ -19,6 +19,13 @@ const ALL = [
   "SpellPatience",
   "SpellKindness",
   "SpellJustice",
+  "FlowDetermination",
+  "FlowBravery",
+  "FlowPerseverance",
+  "FlowIntegrity",
+  "FlowPatience",
+  "FlowKindness",
+  "FlowJustice",
 ];
 const args = process.argv.slice(2);
 const flags = args.filter((a) => a.startsWith("--"));
