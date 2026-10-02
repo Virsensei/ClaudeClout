@@ -49,6 +49,7 @@ fully transparent, and fades use dithering.
   Three designs that only say "this card was cast", each in every class colour. The colours are the
   `CLASS_COLORS` table in `cast/index.ts`; change one and all three designs follow.
 - `VfxCastGloveBravery`: Bravery cast with a boxing glove uppercut (`cast/glove.ts`; `castGlove(hex)` works with any colour).
+- `VfxCastButterflyIntegrity`: Integrity cast with a butterfly that snaps open and flies out of the card (`cast/butterfly.ts`).
 - Effects: `src/Vfx/effects/*.ts`. Each one is a function that draws a single frame (`f` = 0 to 23);
   colors are in the `C` palette at the top of each file.
 - Drawing helpers (rings, lines, sparkles, outline, dither fade): `src/Vfx/pixel.ts`.

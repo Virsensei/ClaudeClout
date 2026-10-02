@@ -1,5 +1,6 @@
 import type { Effect } from "../../PixelCanvas";
 import { castBurst } from "./burst";
+import { castButterfly } from "./butterfly";
 import { castFrame } from "./frame";
 import { castGlove } from "./glove";
 import { castSeal } from "./seal";
@@ -32,3 +33,5 @@ for (const design of Object.keys(DESIGNS)) {
 
 // Class-specific cast: Bravery's boxing glove (its Undertale item is the Tough Glove).
 castEffects.CastGloveBravery = castGlove(CLASS_COLORS.Bravery);
+// Integrity: a butterfly that snaps its wings open and flies out of the card.
+castEffects.CastButterflyIntegrity = castButterfly(CLASS_COLORS.Integrity);

@@ -69,6 +69,7 @@ const ALL = [
   "CastBurstKindness",
   "CastBurstJustice",
   "CastGloveBravery",
+  "CastButterflyIntegrity",
 ];
 const args = process.argv.slice(2);
 const flags = args.filter((a) => a.startsWith("--"));
