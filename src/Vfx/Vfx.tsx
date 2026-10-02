@@ -3,6 +3,8 @@ import { PixelCanvas } from "./PixelCanvas";
 import type { Effect } from "./PixelCanvas";
 import { castMagic } from "./effects/castMagic";
 import { castMagic2 } from "./effects/castMagic2";
+import { castMagic3 } from "./effects/castMagic3";
+import { castMagic4 } from "./effects/castMagic4";
 import { freeze } from "./effects/freeze";
 import { freeze2 } from "./effects/freeze2";
 import { silence } from "./effects/silence";
@@ -17,6 +19,8 @@ const SHEET_COLUMNS = 6;
 const effects: Record<string, Effect> = {
   CastMagic: castMagic,
   CastMagic2: castMagic2,
+  CastMagic3: castMagic3,
+  CastMagic4: castMagic4,
   Freeze: freeze,
   Freeze2: freeze2,
   Silence: silence,
