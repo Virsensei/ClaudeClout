@@ -3,6 +3,7 @@ import { HelloWorld } from "./HelloWorld";
 import { EngineeredWood } from "./EngineeredWood/EngineeredWood";
 import { engineeredWoodSchema } from "./EngineeredWood/schema";
 import { FPS } from "./EngineeredWood/theme";
+import { VfxCompositions } from "./Vfx/Vfx";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -92,6 +93,7 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         defaultProps={{ title: "ClaudeClout" }}
       />
+      <VfxCompositions />
     </>
   );
 };

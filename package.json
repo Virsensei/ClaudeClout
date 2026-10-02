@@ -9,7 +9,8 @@
     "render": "remotion render",
     "upgrade": "remotion upgrade",
     "lint": "tsc",
-    "render:wood": "remotion render EngineeredWood out/EngineeredWood.mp4"
+    "render:wood": "remotion render EngineeredWood out/EngineeredWood.mp4 --codec=h264 --crf=14 --x264-preset=veryslow",
+    "render:vfx": "node scripts/render-vfx.mjs"
   },
   "dependencies": {
     "@remotion/cli": "4.0.530",
