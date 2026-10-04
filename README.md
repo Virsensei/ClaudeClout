@@ -59,6 +59,8 @@ fully transparent, and fades use dithering.
   with a cross flare, and a ring of little stars blooms out and winks away.
   `docs/pixel-composer/CastStarDetermination.md` explains how to rebuild it in Pixel Composer, and its seven layers render
   on their own as `VfxCastStarDeterminationLayer<Motes|Flare|Shockwave|MiniStars|Star|Sparkles|Twinkle>`.
+  `fusion/CastStarDetermination.setting` is the same effect as a DaVinci Resolve Fusion node tree with one CTRL node
+  (see `fusion/README.md`; regenerate with `python3 scripts/fusion/save_star.py`).
 - The cast effects never touch the canvas edge (the game shows them over a transparent background, so anything
   cut off at the edge would look wrong). Keep new elements inside the card box `{ x0: 15, y0: 4, x1: 94, y1: 121 }`
   and make them leave by shrinking or fading, not by flying off.
