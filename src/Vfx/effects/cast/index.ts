@@ -5,6 +5,7 @@ import { castFrame } from "./frame";
 import { castGlove } from "./glove";
 import { castKnife } from "./knife";
 import { castSeal } from "./seal";
+import { castStar } from "./star";
 import { castSwarm } from "./swarm";
 
 // Spell-card cast effects: three designs, each in every class colour.
@@ -41,3 +42,5 @@ castEffects.CastButterflyIntegrity = castButterfly(CLASS_COLORS.Integrity);
 castEffects.CastSwarmIntegrity = castSwarm(CLASS_COLORS.Integrity);
 // Patience: a toy knife that waits for its moment, then cuts across the card.
 castEffects.CastKnifePatience = castKnife(CLASS_COLORS.Patience);
+// Determination: the save-point star.
+castEffects.CastStarDetermination = castStar(CLASS_COLORS.Determination);

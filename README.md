@@ -55,6 +55,8 @@ fully transparent, and fades use dithering.
   shrinking into a tiny twinkle.
 - `VfxCastKnifePatience`: Patience cast with a toy knife (`cast/knife.ts`): clock ticks light up while it waits,
   one swing leaves a thin cut across the card, and the cut waits two beats before it bursts open.
+- `VfxCastStarDetermination`: Determination cast with the save-point star (`cast/star.ts`): it charges, bursts
+  with a cross flare, and a ring of little stars blooms out and winks away.
 - The cast effects never touch the canvas edge (the game shows them over a transparent background, so anything
   cut off at the edge would look wrong). Keep new elements inside the card box `{ x0: 15, y0: 4, x1: 94, y1: 121 }`
   and make them leave by shrinking or fading, not by flying off.
