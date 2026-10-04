@@ -5,7 +5,7 @@ import { castFrame } from "./frame";
 import { castGlove } from "./glove";
 import { castKnife } from "./knife";
 import { castSeal } from "./seal";
-import { castStar } from "./star";
+import { castStar, STAR_LAYERS } from "./star";
 import { castSwarm } from "./swarm";
 
 // Spell-card cast effects: three designs, each in every class colour.
@@ -44,3 +44,7 @@ castEffects.CastSwarmIntegrity = castSwarm(CLASS_COLORS.Integrity);
 castEffects.CastKnifePatience = castKnife(CLASS_COLORS.Patience);
 // Determination: the save-point star.
 castEffects.CastStarDetermination = castStar(CLASS_COLORS.Determination);
+// The save star split into its layers (e.g. CastStarDeterminationLayerFlare), for rebuilding it in other tools.
+for (const layer of STAR_LAYERS) {
+  castEffects[`CastStarDeterminationLayer${layer}`] = castStar(CLASS_COLORS.Determination, layer);
+}

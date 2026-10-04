@@ -38,8 +38,14 @@ const MINIS = new Array(MINI).fill(0).map((_, i) => ({
   spin: (rand(`ss-s-${i}`) - 0.5) * 0.5,
 }));
 
-export const castStar = (hex: string): Effect => {
+// Layer names, bottom to top. Pass one to `castStar` to render only that
+// layer (stacking all seven in this order gives the full effect), e.g. to
+// rebuild or retime it in another tool.
+export const STAR_LAYERS = ["Motes", "Flare", "Shockwave", "MiniStars", "Star", "Sparkles", "Twinkle"];
+
+export const castStar = (hex: string, only?: string): Effect => {
   const P = ramp(hex);
+  const on = (layer: string) => !only || only === layer;
 
   const effect: Effect = (b, f) => {
     const age = f - BURST;
@@ -51,7 +57,7 @@ export const castStar = (hex: string): Effect => {
     const spin = age === 0 ? 0 : Math.sin(f * 0.9) * 0.1;
 
     // Motes of determination spiralling in while it charges.
-    if (f < BURST) {
+    if (f < BURST && on("Motes")) {
       b.layer(
         (l) => {
           for (let i = 0; i < 14; i++) {
@@ -70,7 +76,7 @@ export const castStar = (hex: string): Effect => {
     }
 
     // Cross flare on the burst: long thin rays along the star's points.
-    if (age >= 0 && age <= 3) {
+    if (age >= 0 && age <= 3 && on("Flare")) {
       b.layer(
         (l) => {
           const len = ([1, 0.75, 0.5, 0.25] as number[])[age];
@@ -86,10 +92,12 @@ export const castStar = (hex: string): Effect => {
         { outline: P.ink },
       );
     }
-    doubleShock(b, CX, CY, age, P, 0.85);
+    if (on("Shockwave")) {
+      doubleShock(b, CX, CY, age, P, 0.85);
+    }
 
     // The little stars blooming out, each winking away on its own beat.
-    if (age >= 1) {
+    if (age >= 1 && on("MiniStars")) {
       b.layer(
         (l) => {
           MINIS.forEach((m, i) => {
@@ -111,7 +119,7 @@ export const castStar = (hex: string): Effect => {
     }
 
     // The save star.
-    if (s > 0) {
+    if (s > 0 && on("Star")) {
       const r = radiusAt(f) * s;
       b.layer(
         (l) => {
@@ -132,14 +140,18 @@ export const castStar = (hex: string): Effect => {
       }
     }
 
-    b.layer(
-      (l) => {
-        risingSparkles(l, f, BURST + 3, CX, CY + 6, 60, 70, P, "ss-r", 6);
-      },
-      { outline: P.ink, fade: 1 - span(f, 17, 21) },
-    );
+    if (on("Sparkles")) {
+      b.layer(
+        (l) => {
+          risingSparkles(l, f, BURST + 3, CX, CY + 6, 60, 70, P, "ss-r", 6);
+        },
+        { outline: P.ink, fade: 1 - span(f, 17, 21) },
+      );
+    }
 
-    b.layer((l) => finalTwinkle(l, CX, CY, f - (POP + 4), P), { outline: P.ink });
+    if (on("Twinkle")) {
+      b.layer((l) => finalTwinkle(l, CX, CY, f - (POP + 4), P), { outline: P.ink });
+    }
   };
 
   return withShake(effect, [[BURST, 1.5]]);
