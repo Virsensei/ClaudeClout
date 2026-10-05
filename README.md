@@ -53,8 +53,8 @@ fully transparent, and fades use dithering.
 - `VfxCastSwarmIntegrity`: Integrity cast with a swarm of little butterflies (`cast/swarm.ts`). Each one has its own
   release time, flap speed, wandering path and exit frame (the `FLIERS` table), stays inside `BOX`, and leaves by
   shrinking into a tiny twinkle.
-- `VfxCastKnifePatience`: Patience cast with a toy knife (`cast/knife.ts`): clock ticks light up while it waits,
-  one swing leaves a thin cut across the card, and the cut waits two beats before it bursts open.
+- `VfxCastKnifePatience`: Patience cast with a toy knife (`cast/knife.ts`): the knife is a clock hand that ticks
+  round a circle of clock dots, whips past twelve and leaves a thin cut that waits two beats before it bursts open.
 - `VfxCastStarDetermination`: Determination cast with the save-point star (`cast/star.ts`): it charges, bursts
   with a cross flare, and a ring of little stars blooms out and winks away.
   `docs/pixel-composer/CastStarDetermination.md` explains how to rebuild it in Pixel Composer, and its seven layers render
@@ -62,8 +62,8 @@ fully transparent, and fades use dithering.
   `fusion/CastStarDetermination.setting` is the same effect as a DaVinci Resolve Fusion node tree with one CTRL node
   (see `fusion/README.md`; regenerate with `python3 scripts/fusion/save_star.py`).
 - The cast effects never touch the canvas edge (the game shows them over a transparent background, so anything
-  cut off at the edge would look wrong). Keep new elements inside the card box `{ x0: 15, y0: 4, x1: 94, y1: 121 }`
-  and make them leave by shrinking or fading, not by flying off.
+  cut off at the edge would look wrong). Elements may go outside the card (`{ x0: 15, y0: 4, x1: 94, y1: 121 }`)
+  but must stay inside the 220 x 250 canvas, and leave by shrinking or fading, not by flying off.
 - Effects: `src/Vfx/effects/*.ts`. Each one is a function that draws a single frame (`f` = 0 to 23);
   colors are in the `C` palette at the top of each file.
 - Drawing helpers (rings, lines, sparkles, outline, dither fade): `src/Vfx/pixel.ts`.

@@ -1,44 +1,57 @@
 import type { Effect } from "../../PixelCanvas";
-import { CX, CY, easeInOut, easeOut, rand, span } from "../../pixel";
+import { CX, CY, easeOut, rand, span } from "../../pixel";
 import type { PixelBuffer, RGB } from "../../pixel";
 import type { Point } from "../classes/shared";
 import { ramp, risingSparkles, transform } from "../classes/shared";
 import { chunk, doubleShock, finalTwinkle, popOut, withShake } from "../classes3/juice";
 
-// Cast, "Patient Cut" (Patience's Toy Knife): a knife pops in and a ring
-// of clock ticks lights up one by one while it slowly draws back and a
-// glint runs up the blade. Then one clean swing leaves a thin cut across
-// the card... which waits two beats, then bursts open (flash, hit-stop,
-// shake, shockwave, shards). The knife glints and shrinks away into a
-// twinkle. Everything stays inside the card.
+// Cast, "Patient Cut" (Patience's Toy Knife): the knife is the hand of a
+// clock. It ticks round one step per frame, lighting each clock dot as it
+// points at it, while a glint runs up the blade. When time is up it whips
+// round past twelve and leaves a thin cut across the card... which waits
+// two beats, then bursts open (flash, hit-stop, shake, shockwave, shards).
+// The knife glints and shrinks away into a twinkle. Nothing leaves the
+// canvas.
 
 const CARD = { x0: 15, y0: 4, x1: 94, y1: 121 };
 const TAU = Math.PI * 2;
 const STRIKE = 7;
 const BURST = 10; // the delayed burst of the cut
 const POP = 15;
-const SIZE = 1.15;
-const PIVOT: Point = [CX, CY + 4];
+const SIZE = 0.9;
+const PIVOT: Point = [CX, CY]; // the centre of the clock
+const HUB = 10; // the knife turns round this point on its handle, like a clock hand
 const TICKS = 8;
+const CLOCK_R = 38;
 // The slash: top right to bottom left across the card, crossing the
 // knife's resting pose in an X.
 const S0: Point = [CARD.x1 - 9, CARD.y0 + 22];
 const S1: Point = [CARD.x0 + 9, CARD.y1 - 22];
 
-// Knife angle per frame (0 = pointing up, positive = clockwise).
-const READY = -0.75;
-const END = 2.1;
+// Knife angle per frame (0 = pointing up at twelve, positive = clockwise).
+// While waiting it ticks one clock dot per frame; then it whips round past
+// twelve to its resting pose, crossing the cut in an X.
+const STEP = TAU / TICKS;
+const READY = (STRIKE - 1) * STEP;
+const END = TAU + 2.1;
 const angleAt = (f: number) => {
   if (f < STRIKE) {
-    return 0.25 + (READY - 0.25) * easeInOut(span(f, 1, 6));
+    return f * STEP;
   }
   const after: Record<number, number> = { 7: END, 8: END + 0.22, 9: END - 0.08, 10: END + 0.14, 11: END - 0.05 };
   return after[f] ?? END + Math.sin(f * 0.9) * 0.03;
 };
 
-// The knife, pointing up, with the middle of its guard at the origin.
-const knife = (l: PixelBuffer, angle: number, s: number, p: ReturnType<typeof ramp>, flash: boolean) => {
+// Maps knife coordinates (pointing up, guard at the origin, handle down)
+// so that the hub on its handle sits on the clock's centre.
+const hand = (angle: number, s: number) => {
   const t = transform(PIVOT[0], PIVOT[1], angle, s);
+  return ([x, y]: Point): Point => t([x, y - HUB]);
+};
+
+// The knife as a clock hand, with a pin at the hub.
+const knife = (l: PixelBuffer, angle: number, s: number, p: ReturnType<typeof ramp>, flash: boolean) => {
+  const t = hand(angle, s);
   const c = (col: RGB) => (flash ? p.white : col);
   // Blade: straight back, curved edge up to the point.
   l.polygon(([[-3, -3], [3.5, -3], [4, -14], [2.5, -24], [-1.5, -31], [-3, -28]] as Point[]).map(t), c(p.light));
@@ -57,12 +70,14 @@ const knife = (l: PixelBuffer, angle: number, s: number, p: ReturnType<typeof ra
   }
   l.disc(...t([0, 13]), 2.6 * s, c(p.base));
   l.set(...t([-0.5, 12.5]), c(p.pale));
+  // The clock's centre pin.
+  l.disc(PIVOT[0], PIVOT[1], 2.2, c(p.pale));
+  l.set(PIVOT[0], PIVOT[1], p.white);
 };
 
 // A glint `g` (0 = guard, 1 = point) along the blade's edge.
 const glint = (l: PixelBuffer, angle: number, s: number, g: number, p: ReturnType<typeof ramp>) => {
-  const t = transform(PIVOT[0], PIVOT[1], angle, s);
-  const [x, y] = t([3.6 - g * 1.6, -5 - g * 19]);
+  const [x, y] = hand(angle, s)([3.6 - g * 1.6, -5 - g * 19]);
   l.sparkle(x, y, 2, p.pale, p.white);
 };
 
@@ -80,7 +95,7 @@ export const castKnife = (hex: string): Effect => {
       for (let i = 0; i < TICKS; i++) {
         const a = -Math.PI / 2 + (i * TAU) / TICKS;
         if (age < 0 && i > f) {
-          l.rect(CX + Math.cos(a) * 33 - 1, CY + Math.sin(a) * 46 - 1, 2, 2, P.base);
+          l.rect(PIVOT[0] + Math.cos(a) * CLOCK_R - 1, PIVOT[1] + Math.sin(a) * CLOCK_R - 1, 2, 2, P.base);
         }
       }
     });
@@ -89,13 +104,14 @@ export const castKnife = (hex: string): Effect => {
         const out = burst > 0 ? easeOut(span(burst, 0, 4)) * 4 : 0;
         for (let i = 0; i < TICKS; i++) {
           const a = -Math.PI / 2 + (i * TAU) / TICKS;
-          const x = CX + Math.cos(a) * (33 + out);
-          const y = CY + Math.sin(a) * (46 + out);
+          const x = PIVOT[0] + Math.cos(a) * (CLOCK_R + out);
+          const y = PIVOT[1] + Math.sin(a) * (CLOCK_R + out);
           if (age < 0 && i > f) {
             continue;
           }
           const fresh = (age < 0 && i === f) || (age === 0 && i === TICKS - 1);
-          const r = burst === 0 ? 3.5 : fresh ? 3 : burst > 0 ? 2.5 : 2;
+          // Twelve, three, six and nine are a little bigger, like on a clock face.
+          const r = (burst === 0 ? 3.5 : fresh ? 3 : burst > 0 ? 2.5 : 2) + (i % 2 === 0 ? 0.5 : 0);
           // Lit ticks blink while the cut waits to burst.
           const blink = age > 0 && burst < 0 && (i + f) % 2 === 0;
           l.polygon([[x, y - r], [x + r, y], [x, y + r], [x - r, y]], burst === 0 || fresh || blink ? P.white : P.pale);
@@ -111,7 +127,7 @@ export const castKnife = (hex: string): Effect => {
         (l) => {
           const from = READY - Math.PI / 2;
           const to = END - Math.PI / 2;
-          const outer = 31 * SIZE + 1;
+          const outer = (31 + HUB) * SIZE + 1;
           const N = 14;
           const start = ([0, 0.45] as number[])[age];
           for (let i = 0; i < N; i++) {
@@ -206,7 +222,7 @@ export const castKnife = (hex: string): Effect => {
           glint(l, angle, SIZE, (f - 3) / 3, P);
         }
         if (f === STRIKE - 1) {
-          const [x, y] = transform(PIVOT[0], PIVOT[1], angle, SIZE)([-1.5, -31]);
+          const [x, y] = hand(angle, SIZE)([-1.5, -31]);
           l.sparkle(x, y, 4, P.pale, P.white);
         }
         // And once more while it holds after the burst.
@@ -218,7 +234,7 @@ export const castKnife = (hex: string): Effect => {
       { outline: P.ink, fade: 1 - span(f, 18, 21) },
     );
 
-    b.layer((l) => finalTwinkle(l, PIVOT[0], PIVOT[1] - 4, f - (POP + 4), P), { outline: P.ink });
+    b.layer((l) => finalTwinkle(l, PIVOT[0], PIVOT[1], f - (POP + 4), P), { outline: P.ink });
   };
 
   return withShake(effect, [
