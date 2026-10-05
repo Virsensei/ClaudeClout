@@ -71,41 +71,49 @@ const burst = (l: PixelBuffer, x: number, y: number, r: number, p: ReturnType<ty
   l.disc(x, y, r * 0.22, p.white);
 };
 
-export const castGlove = (hex: string): Effect => {
+// Layer names, bottom to top (see `castGlove`'s `only`).
+export const GLOVE_LAYERS = ["Brackets", "SpeedLines", "Smear", "ImpactBurst", "Shockwave", "Glove", "Sparks", "Embers", "Dust", "Twinkle"];
+
+// `only` draws just that one layer (stacked in GLOVE_LAYERS order, the
+// layers rebuild the full effect).
+export const castGlove = (hex: string, only?: string): Effect => {
   const P = ramp(hex);
+  const on = (layer: string) => !only || only === layer;
 
   const effect: Effect = (b, f) => {
     const age = f - PUNCH;
     const s = popOut(span(f, POP, POP + 4));
 
     // Card corner brackets: pop in, pinch on the wind-up, fly off on the punch.
-    b.layer(
-      (l) => {
-        const pop = ([0.4, 1.3, 1] as number[])[f] ?? 1;
-        const pinch = f >= 4 && f < PUNCH ? 2 : 0;
-        // On the release the brackets retract into the corners (never leave the card).
-        const retract = age > 0 ? easeOut(span(age, 0, 4)) : 0;
-        const c = age === 0 ? P.white : P.base;
-        for (const [x, y, sx, sy] of [
-          [CARD.x0, CARD.y0, 1, 1],
-          [CARD.x1, CARD.y0, -1, 1],
-          [CARD.x0, CARD.y1, 1, -1],
-          [CARD.x1, CARD.y1, -1, -1],
-        ]) {
-          const px = x + sx * (pinch + 1);
-          const py = y + sy * (pinch + 1);
-          const arm = 8 * pop * (1 - retract);
-          if (arm >= 1) {
-            l.thickLine(px, py, px + sx * arm, py, 2, c);
-            l.thickLine(px, py, px, py + sy * arm, 2, c);
+    if (on("Brackets")) {
+      b.layer(
+        (l) => {
+          const pop = ([0.4, 1.3, 1] as number[])[f] ?? 1;
+          const pinch = f >= 4 && f < PUNCH ? 2 : 0;
+          // On the release the brackets retract into the corners (never leave the card).
+          const retract = age > 0 ? easeOut(span(age, 0, 4)) : 0;
+          const c = age === 0 ? P.white : P.base;
+          for (const [x, y, sx, sy] of [
+            [CARD.x0, CARD.y0, 1, 1],
+            [CARD.x1, CARD.y0, -1, 1],
+            [CARD.x0, CARD.y1, 1, -1],
+            [CARD.x1, CARD.y1, -1, -1],
+          ]) {
+            const px = x + sx * (pinch + 1);
+            const py = y + sy * (pinch + 1);
+            const arm = 8 * pop * (1 - retract);
+            if (arm >= 1) {
+              l.thickLine(px, py, px + sx * arm, py, 2, c);
+              l.thickLine(px, py, px, py + sy * arm, 2, c);
+            }
           }
-        }
-      },
-      { outline: age === 1 ? P.white : P.ink, fade: 1 - span(f, PUNCH + 1, PUNCH + 5) },
-    );
+        },
+        { outline: age === 1 ? P.white : P.ink, fade: 1 - span(f, PUNCH + 1, PUNCH + 5) },
+      );
+    }
 
     // Speed lines rushing in during the wind-up.
-    if (f >= 2 && f < PUNCH) {
+    if (f >= 2 && f < PUNCH && on("SpeedLines")) {
       b.layer((l) => {
         for (let i = 0; i < 10; i++) {
           const a = (i * TAU) / 10 + 0.2;
@@ -116,7 +124,7 @@ export const castGlove = (hex: string): Effect => {
     }
 
     // Smear behind the glove on the punch.
-    if (age >= 0 && age <= 1) {
+    if (age >= 0 && age <= 1 && on("Smear")) {
       b.layer((l) => {
         for (let k = 1; k <= 3; k++) {
           l.disc(CX + 1, CY + 12 + k * 9, 10 - k * 1.5, P.light, 0.7 - k * 0.15);
@@ -127,7 +135,7 @@ export const castGlove = (hex: string): Effect => {
     // Impact burst at the knuckles.
     const BX = CX + 1;
     const BY = CY - 26;
-    if (age >= 0 && age <= 4) {
+    if (age >= 0 && age <= 4 && on("ImpactBurst")) {
       b.layer(
         (l) => {
           burst(l, BX, BY, ([22, 22, 17, 11, 6] as number[])[age], P, age * 0.25);
@@ -144,10 +152,12 @@ export const castGlove = (hex: string): Effect => {
         { outline: age === 1 ? P.white : P.ink },
       );
     }
-    doubleShock(b, BX, BY, age, P, 0.6);
+    if (on("Shockwave")) {
+      doubleShock(b, BX, BY, age, P, 0.6);
+    }
 
     // The glove.
-    if (s > 0) {
+    if (s > 0 && on("Glove")) {
       let y = REST_Y;
       let x = CX;
       let sx = ([0.75, 1.15] as number[])[f] ?? 1;
@@ -185,53 +195,72 @@ export const castGlove = (hex: string): Effect => {
       });
     }
 
-    b.layer(
-      (l) => {
-        // Sparks flying from the impact, falling and bouncing.
-        if (age >= 0 && age <= 7) {
-          for (let i = 0; i < 10; i++) {
-            const a = -Math.PI / 2 + (i - 4.5) * 0.5;
-            const v = 3 + rand(`gs-v-${i}`) * 3;
-            const [x, y] = bouncePosition(BX, BY, Math.cos(a) * v, Math.sin(a) * v, age, FLOOR);
-            if (x < 20 || x > 89 || y < 10) {
+    const fadeOut = { outline: P.ink, fade: 1 - span(f, 17, 21) };
+    if (on("Sparks")) {
+      b.layer(
+        (l) => {
+          // Sparks flying from the impact, falling and bouncing.
+          if (age >= 0 && age <= 7) {
+            for (let i = 0; i < 10; i++) {
+              const a = -Math.PI / 2 + (i - 4.5) * 0.5;
+              const v = 3 + rand(`gs-v-${i}`) * 3;
+              const [x, y] = bouncePosition(BX, BY, Math.cos(a) * v, Math.sin(a) * v, age, FLOOR);
+              if (x < 20 || x > 89 || y < 10) {
+                continue;
+              }
+              if (age < 4) {
+                chunk(l, x, y, 3, i % 3 === 0 ? P.white : i % 3 === 1 ? P.pale : P.light);
+              } else if ((i + age) % 2 === 0) {
+                l.sparkle(x, y, 1, P.light, P.white);
+              }
+            }
+          }
+        },
+        fadeOut,
+      );
+    }
+    if (on("Embers")) {
+      b.layer(
+        (l) => {
+          // Embers rising off the glove while it holds.
+          for (let i = 0; i < 7; i++) {
+            const born = PUNCH + 4 + rand(`ge-b-${i}`) * 6;
+            const t = f - born;
+            if (t < 0 || t > Math.min(5, 21 - born)) {
               continue;
             }
-            if (age < 4) {
-              chunk(l, x, y, 3, i % 3 === 0 ? P.white : i % 3 === 1 ? P.pale : P.light);
-            } else if ((i + age) % 2 === 0) {
-              l.sparkle(x, y, 1, P.light, P.white);
+            const x = CX + (rand(`ge-x-${i}`) - 0.5) * 30 + Math.sin(t + i) * 2;
+            const y = CY - 14 - t * 4;
+            l.rect(x, y, t < 2 ? 2 : 1, t < 2 ? 2 : 1, t < 2 ? P.pale : P.light);
+          }
+        },
+        fadeOut,
+      );
+    }
+    if (on("Dust")) {
+      b.layer(
+        (l) => {
+          // Little dust puffs where it lands from each bounce.
+          for (const land of [11, 13]) {
+            const t = f - land;
+            if (t >= 0 && t <= 2) {
+              for (const side of [-1, 1]) {
+                l.sparkle(CX + side * (13 + t * 4), CY + 24 - t, ([2, 1, 1] as number[])[t], P.pale, P.white);
+              }
             }
           }
-        }
-        // Embers rising off the glove while it holds.
-        for (let i = 0; i < 7; i++) {
-          const born = PUNCH + 4 + rand(`ge-b-${i}`) * 6;
-          const t = f - born;
-          if (t < 0 || t > Math.min(5, 21 - born)) {
-            continue;
+          // A ready glint on the knuckles.
+          if (f === 14) {
+            l.sparkle(CX + 4, CY - 4, 3, P.pale, P.white);
           }
-          const x = CX + (rand(`ge-x-${i}`) - 0.5) * 30 + Math.sin(t + i) * 2;
-          const y = CY - 14 - t * 4;
-          l.rect(x, y, t < 2 ? 2 : 1, t < 2 ? 2 : 1, t < 2 ? P.pale : P.light);
-        }
-        // Little dust puffs where it lands from each bounce.
-        for (const land of [11, 13]) {
-          const t = f - land;
-          if (t >= 0 && t <= 2) {
-            for (const side of [-1, 1]) {
-              l.sparkle(CX + side * (13 + t * 4), CY + 24 - t, ([2, 1, 1] as number[])[t], P.pale, P.white);
-            }
-          }
-        }
-        // A ready glint on the knuckles.
-        if (f === 14) {
-          l.sparkle(CX + 4, CY - 4, 3, P.pale, P.white);
-        }
-      },
-      { outline: P.ink, fade: 1 - span(f, 17, 21) },
-    );
+        },
+        fadeOut,
+      );
+    }
 
-    b.layer((l) => finalTwinkle(l, CX + 1, CY + 4, f - (POP + 4), P), { outline: P.ink });
+    if (on("Twinkle")) {
+      b.layer((l) => finalTwinkle(l, CX + 1, CY + 4, f - (POP + 4), P), { outline: P.ink });
+    }
   };
 
   return withShake(effect, [

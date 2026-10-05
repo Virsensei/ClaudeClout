@@ -1,6 +1,7 @@
 import { Composition } from "remotion";
 import { PixelCanvas } from "./PixelCanvas";
 import type { Effect } from "./PixelCanvas";
+import { LAYERED } from "./layers";
 import { castMagic } from "./effects/castMagic";
 import { castMagic2 } from "./effects/castMagic2";
 import { castMagic3 } from "./effects/castMagic3";
@@ -119,6 +120,22 @@ const SpriteSheet: React.FC<{ effect: string }> = ({ effect }) => (
   </div>
 );
 
+// Every layer of a layered effect in one image: a row per layer (bottom
+// layer first), a column per frame.
+const LayerSheet: React.FC<{ effect: string }> = ({ effect }) => (
+  <div style={{ display: "flex", flexDirection: "column" }}>
+    {LAYERED[effect].map((layer) => (
+      <div key={layer.name} style={{ display: "flex" }}>
+        {new Array(VFX_FRAMES).fill(0).map((_, i) => (
+          <div key={i} style={{ width: WIDTH, height: HEIGHT, flexShrink: 0 }}>
+            <PixelCanvas effect={layer.effect} frame={i} />
+          </div>
+        ))}
+      </div>
+    ))}
+  </div>
+);
+
 export const VfxCompositions: React.FC = () => (
   <>
     {Object.keys(effects).map((name) => (
@@ -141,6 +158,18 @@ export const VfxCompositions: React.FC = () => (
         defaultProps={{ effect: name }}
         width={WIDTH * SHEET_COLUMNS}
         height={HEIGHT * Math.ceil(VFX_FRAMES / SHEET_COLUMNS)}
+        fps={VFX_FPS}
+        durationInFrames={1}
+      />
+    ))}
+    {Object.keys(LAYERED).map((name) => (
+      <Composition
+        key={`layers-${name}`}
+        id={`VfxLayers${name}`}
+        component={LayerSheet}
+        defaultProps={{ effect: name }}
+        width={WIDTH * VFX_FRAMES}
+        height={HEIGHT * LAYERED[name].length}
         fps={VFX_FPS}
         durationInFrames={1}
       />

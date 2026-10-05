@@ -81,8 +81,14 @@ const glint = (l: PixelBuffer, angle: number, s: number, g: number, p: ReturnTyp
   l.sparkle(x, y, 2, p.pale, p.white);
 };
 
-export const castKnife = (hex: string): Effect => {
+// Layer names, bottom to top (see `castKnife`'s `only`).
+export const KNIFE_LAYERS = ["ClockDots", "Smear", "Cut", "CutShards", "Shockwave", "Knife", "Glints", "Sparkles", "Twinkle"];
+
+// `only` draws just that one layer (stacked in KNIFE_LAYERS order, the
+// layers rebuild the full effect).
+export const castKnife = (hex: string, only?: string): Effect => {
   const P = ramp(hex);
+  const on = (layer: string) => !only || only === layer;
 
   const effect: Effect = (b, f) => {
     const age = f - STRIKE;
@@ -91,38 +97,42 @@ export const castKnife = (hex: string): Effect => {
 
     // The clock ticks: one lights up every frame while the knife waits,
     // the last on the swing; all flash and spread on the burst.
-    b.layer((l) => {
-      for (let i = 0; i < TICKS; i++) {
-        const a = -Math.PI / 2 + (i * TAU) / TICKS;
-        if (age < 0 && i > f) {
-          l.rect(PIVOT[0] + Math.cos(a) * CLOCK_R - 1, PIVOT[1] + Math.sin(a) * CLOCK_R - 1, 2, 2, P.base);
-        }
-      }
-    });
-    b.layer(
-      (l) => {
-        const out = burst > 0 ? easeOut(span(burst, 0, 4)) * 4 : 0;
+    if (on("ClockDots")) {
+      b.layer((l) => {
         for (let i = 0; i < TICKS; i++) {
           const a = -Math.PI / 2 + (i * TAU) / TICKS;
-          const x = PIVOT[0] + Math.cos(a) * (CLOCK_R + out);
-          const y = PIVOT[1] + Math.sin(a) * (CLOCK_R + out);
           if (age < 0 && i > f) {
-            continue;
+            l.rect(PIVOT[0] + Math.cos(a) * CLOCK_R - 1, PIVOT[1] + Math.sin(a) * CLOCK_R - 1, 2, 2, P.base);
           }
-          const fresh = (age < 0 && i === f) || (age === 0 && i === TICKS - 1);
-          // Twelve, three, six and nine are a little bigger, like on a clock face.
-          const r = (burst === 0 ? 3.5 : fresh ? 3 : burst > 0 ? 2.5 : 2) + (i % 2 === 0 ? 0.5 : 0);
-          // Lit ticks blink while the cut waits to burst.
-          const blink = age > 0 && burst < 0 && (i + f) % 2 === 0;
-          l.polygon([[x, y - r], [x + r, y], [x, y + r], [x - r, y]], burst === 0 || fresh || blink ? P.white : P.pale);
-          l.set(x, y, P.white);
         }
-      },
-      { outline: burst === 1 ? P.white : P.ink, fade: 1 - span(f, BURST + 1, BURST + 5) },
-    );
+      });
+    }
+    if (on("ClockDots")) {
+      b.layer(
+        (l) => {
+          const out = burst > 0 ? easeOut(span(burst, 0, 4)) * 4 : 0;
+          for (let i = 0; i < TICKS; i++) {
+            const a = -Math.PI / 2 + (i * TAU) / TICKS;
+            const x = PIVOT[0] + Math.cos(a) * (CLOCK_R + out);
+            const y = PIVOT[1] + Math.sin(a) * (CLOCK_R + out);
+            if (age < 0 && i > f) {
+              continue;
+            }
+            const fresh = (age < 0 && i === f) || (age === 0 && i === TICKS - 1);
+            // Twelve, three, six and nine are a little bigger, like on a clock face.
+            const r = (burst === 0 ? 3.5 : fresh ? 3 : burst > 0 ? 2.5 : 2) + (i % 2 === 0 ? 0.5 : 0);
+            // Lit ticks blink while the cut waits to burst.
+            const blink = age > 0 && burst < 0 && (i + f) % 2 === 0;
+            l.polygon([[x, y - r], [x + r, y], [x, y + r], [x - r, y]], burst === 0 || fresh || blink ? P.white : P.pale);
+            l.set(x, y, P.white);
+          }
+        },
+        { outline: burst === 1 ? P.white : P.ink, fade: 1 - span(f, BURST + 1, BURST + 5) },
+      );
+    }
 
     // Swing smear: a crescent from where it waited to where it ended.
-    if (age >= 0 && age <= 1) {
+    if (age >= 0 && age <= 1 && on("Smear")) {
       b.layer(
         (l) => {
           const from = READY - Math.PI / 2;
@@ -149,11 +159,12 @@ export const castKnife = (hex: string): Effect => {
     }
 
     // The cut across the card: thin and waiting, then it bursts open.
-    if (age >= 0 && burst <= 6) {
+    const [x0, y0] = S0;
+    const [x1, y1] = S1;
+    const cutFade = { outline: burst === 1 ? P.white : P.ink, fade: 1 - span(f, BURST + 3, BURST + 7) };
+    if (age >= 0 && burst <= 6 && on("Cut")) {
       b.layer(
         (l) => {
-          const [x0, y0] = S0;
-          const [x1, y1] = S1;
           const len = Math.hypot(x1 - x0, y1 - y0);
           const nx = -(y1 - y0) / len;
           const ny = (x1 - x0) / len;
@@ -182,6 +193,16 @@ export const castKnife = (hex: string): Effect => {
             lens(w, nx * gap, ny * gap, c);
             lens(w, -nx * gap, -ny * gap, c);
           }
+        },
+        cutFade,
+      );
+    }
+    if (age >= 0 && burst <= 6 && on("CutShards")) {
+      b.layer(
+        (l) => {
+          const len = Math.hypot(x1 - x0, y1 - y0);
+          const nx = -(y1 - y0) / len;
+          const ny = (x1 - x0) / len;
           // Sparkles running out along the cut.
           if (burst >= 1 && burst <= 5) {
             for (const dir of [-1, 1]) {
@@ -201,40 +222,49 @@ export const castKnife = (hex: string): Effect => {
             }
           }
         },
-        { outline: burst === 1 ? P.white : P.ink, fade: 1 - span(f, BURST + 3, BURST + 7) },
+        cutFade,
       );
     }
-    doubleShock(b, CX, CY, burst, P, 0.85);
+    if (on("Shockwave")) {
+      doubleShock(b, CX, CY, burst, P, 0.85);
+    }
 
     // The knife.
     const s = popOut(span(f, POP, POP + 4));
-    if (s > 0) {
+    if (s > 0 && on("Knife")) {
       const pop = ([0.75, 1.15] as number[])[f] ?? (age === 0 || burst === 0 ? 1.1 : 1);
       b.layer((l) => knife(l, angle, SIZE * pop * s, P, age === 0 || burst === 0), {
         outline: age === 1 || burst === 1 ? P.white : P.ink,
       });
     }
 
-    b.layer(
-      (l) => {
-        // A glint runs up the blade as it waits, and pings at the point.
-        if (f >= 3 && f < STRIKE) {
-          glint(l, angle, SIZE, (f - 3) / 3, P);
-        }
-        if (f === STRIKE - 1) {
-          const [x, y] = hand(angle, SIZE)([-1.5, -31]);
-          l.sparkle(x, y, 4, P.pale, P.white);
-        }
-        // And once more while it holds after the burst.
-        if (f >= BURST + 3 && f <= BURST + 5) {
-          glint(l, angle, SIZE, (f - BURST - 3) / 2, P);
-        }
-        risingSparkles(l, f, BURST + 2, CX, CY, 60, 70, P, "kn-s", 12);
-      },
-      { outline: P.ink, fade: 1 - span(f, 18, 21) },
-    );
+    const fadeOut = { outline: P.ink, fade: 1 - span(f, 18, 21) };
+    if (on("Glints")) {
+      b.layer(
+        (l) => {
+          // A glint runs up the blade as it waits, and pings at the point.
+          if (f >= 3 && f < STRIKE) {
+            glint(l, angle, SIZE, (f - 3) / 3, P);
+          }
+          if (f === STRIKE - 1) {
+            const [x, y] = hand(angle, SIZE)([-1.5, -31]);
+            l.sparkle(x, y, 4, P.pale, P.white);
+          }
+          // And once more while it holds after the burst.
+          if (f >= BURST + 3 && f <= BURST + 5) {
+            glint(l, angle, SIZE, (f - BURST - 3) / 2, P);
+          }
+        },
+        fadeOut,
+      );
+    }
+    if (on("Sparkles")) {
+      b.layer((l) => risingSparkles(l, f, BURST + 2, CX, CY, 60, 70, P, "kn-s", 12), fadeOut);
+    }
 
-    b.layer((l) => finalTwinkle(l, PIVOT[0], PIVOT[1], f - (POP + 4), P), { outline: P.ink });
+    if (on("Twinkle")) {
+      b.layer((l) => finalTwinkle(l, PIVOT[0], PIVOT[1], f - (POP + 4), P), { outline: P.ink });
+    }
   };
 
   return withShake(effect, [

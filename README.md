@@ -57,10 +57,12 @@ fully transparent, and fades use dithering.
   round a circle of clock dots, whips past twelve and leaves a thin cut that waits two beats before it bursts open.
 - `VfxCastStarDetermination`: Determination cast with the save-point star (`cast/star.ts`): it charges, bursts
   with a cross flare, and a ring of little stars blooms out and winks away.
-  `docs/pixel-composer/CastStarDetermination.md` explains how to rebuild it in Pixel Composer, and its seven layers render
-  on their own as `VfxCastStarDeterminationLayer<Motes|Flare|Shockwave|MiniStars|Star|Sparkles|Twinkle>`.
+  `docs/pixel-composer/CastStarDetermination.md` explains how to rebuild it in Pixel Composer.
   `fusion/CastStarDetermination.setting` is the same effect as a DaVinci Resolve Fusion node tree with one CTRL node
   (see `fusion/README.md`; regenerate with `python3 scripts/fusion/save_star.py`).
+- Layered effects (`src/Vfx/layers.ts`): the knife, save star, quill, pan and glove can render one layer at a time.
+  `VfxLayers<Effect>` is a still with a row per layer (bottom layer first) and a column per frame; stacked in order
+  the layers rebuild the full effect exactly.
 - The cast effects never touch the canvas edge (the game shows them over a transparent background, so anything
   cut off at the edge would look wrong). Elements may go outside the card (`{ x0: 15, y0: 4, x1: 94, y1: 121 }`)
   but must stay inside the 220 x 250 canvas, and leave by shrinking or fading, not by flying off.

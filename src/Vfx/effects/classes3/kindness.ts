@@ -47,43 +47,57 @@ const pancake = (l: PixelBuffer, x: number, y: number, rx: number, ry: number, s
   }
 };
 
-const effect: Effect = (b, f) => {
-  const s = popOut(span(f, POP, POP + 4));
-  const panX = CX - 8;
-  // Pops in, dips down to wind up, jerks up to flip, and dips on the catch.
-  const jerk = ({ 3: 2, 4: 4, 5: -4, 6: -1, 11: 2, 12: 1 } as Record<number, number>)[f] ?? 0;
-  const panY = PAN_Y + jerk;
-  const enter = ([0.75, 1.12] as number[])[f] ?? 1;
+// Layer names, bottom to top. `kindnessLayer(name)` draws just that layer;
+// stacked in this order the layers rebuild the full effect.
+export const KINDNESS_LAYERS = ["Pan", "Pancake", "Butter", "Sizzle", "Shockwave", "Splash", "Steam", "Pluses", "Twinkle"];
 
-  if (s > 0) {
-    b.layer(
-      (l) => {
-        pan(l, panX, panY, s * enter);
-        // Pancake: sizzling, flipping through the air, landing.
-        let px = panX;
-        let py = panY - 4;
-        let rx = 13;
-        let ry = 3.5;
-        let spin = 0;
-        if (f >= FLIP && f < CATCH) {
-          const t = span(f, FLIP, CATCH);
-          py = panY - 4 - 4 * 52 * t * (1 - t);
-          spin = t * Math.PI * 4;
-          ry = 1 + 4.5 * Math.abs(Math.cos(spin));
-          rx = 14;
-          px += Math.sin(t * Math.PI) * 4;
-        } else if (f >= CATCH) {
-          const squash: Record<number, [number, number]> = { 11: [16, 2.2], 12: [12, 4.6] };
-          [rx, ry] = squash[f] ?? [13, 3.5];
-        }
-        pancake(l, px, py, rx * s * enter, ry * s * enter, spin, f === CATCH);
-        // A twinkle at the top of the flip.
-        if (f === FLIP + 3) {
-          l.sparkle(px + 15, py - 4, 3, P.pale, P.white);
-        }
+export const kindnessLayer = (only?: string): Effect => {
+  const on = (layer: string) => !only || only === layer;
+  const effect: Effect = (b, f) => {
+    const s = popOut(span(f, POP, POP + 4));
+    const panX = CX - 8;
+    // Pops in, dips down to wind up, jerks up to flip, and dips on the catch.
+    const jerk = ({ 3: 2, 4: 4, 5: -4, 6: -1, 11: 2, 12: 1 } as Record<number, number>)[f] ?? 0;
+    const panY = PAN_Y + jerk;
+    const enter = ([0.75, 1.12] as number[])[f] ?? 1;
 
-        // Butter: drops on, squishes, melts.
-        if (f >= BUTTER - 2) {
+    const catchOutline = { outline: f === CATCH + 1 ? P.white : P.ink };
+    if (s > 0 && on("Pan")) {
+      b.layer((l) => pan(l, panX, panY, s * enter), catchOutline);
+    }
+    // Pancake: sizzling, flipping through the air, landing.
+    let px = panX;
+    let py = panY - 4;
+    let rx = 13;
+    let ry = 3.5;
+    let spin = 0;
+    if (f >= FLIP && f < CATCH) {
+      const t = span(f, FLIP, CATCH);
+      py = panY - 4 - 4 * 52 * t * (1 - t);
+      spin = t * Math.PI * 4;
+      ry = 1 + 4.5 * Math.abs(Math.cos(spin));
+      rx = 14;
+      px += Math.sin(t * Math.PI) * 4;
+    } else if (f >= CATCH) {
+      const squash: Record<number, [number, number]> = { 11: [16, 2.2], 12: [12, 4.6] };
+      [rx, ry] = squash[f] ?? [13, 3.5];
+    }
+    if (s > 0 && on("Pancake")) {
+      b.layer(
+        (l) => {
+          pancake(l, px, py, rx * s * enter, ry * s * enter, spin, f === CATCH);
+          // A twinkle at the top of the flip.
+          if (f === FLIP + 3) {
+            l.sparkle(px + 15, py - 4, 3, P.pale, P.white);
+          }
+        },
+        catchOutline,
+      );
+    }
+    // Butter: drops on, squishes, melts.
+    if (s > 0 && f >= BUTTER - 2 && on("Butter")) {
+      b.layer(
+        (l) => {
           const bt = span(f, BUTTER - 2, BUTTER);
           const by = panY - 40 + (36 - 0) * bt * bt;
           if (f < BUTTER) {
@@ -93,50 +107,56 @@ const effect: Effect = (b, f) => {
             const w = (f === BUTTER ? 8 : 5 + melt * 6) * s;
             fillEllipse(l, px, panY - 6, w / 2, (f === BUTTER ? 1.2 : 1.6 - melt * 0.6) * s, P.white);
           }
-        }
-      },
-      { outline: f === CATCH + 1 ? P.white : P.ink },
-    );
-  }
+        },
+        catchOutline,
+      );
+    }
 
-  // Sizzle: little bubbles and steam wisps before the flip.
-  if (f >= 1 && f < FLIP) {
-    b.layer((l) => {
-      for (let i = 0; i < 4; i++) {
-        if ((f + i) % 2 === 0) {
-          l.set(panX - 9 + i * 6, panY - 5, P.white);
+    // Sizzle: little bubbles and steam wisps before the flip.
+    if (f >= 1 && f < FLIP && on("Sizzle")) {
+      b.layer((l) => {
+        for (let i = 0; i < 4; i++) {
+          if ((f + i) % 2 === 0) {
+            l.set(panX - 9 + i * 6, panY - 5, P.white);
+          }
+          const t = (f + i) % 3;
+          l.line(panX - 8 + i * 5, panY - 9 - t * 3, panX - 7 + i * 5, panY - 12 - t * 3, P.pale, 0.7);
         }
-        const t = (f + i) % 3;
-        l.line(panX - 8 + i * 5, panY - 9 - t * 3, panX - 7 + i * 5, panY - 12 - t * 3, P.pale, 0.7);
-      }
-    });
-  }
+      });
+    }
 
-  // Flat shockwaves rolling out along the pan on the catch.
-  const age = f - CATCH;
-  if (age >= 0 && age <= 4) {
-    const r = 22 + (age / 4) * 10;
-    b.ellipseRing(panX, panY, r, r * 0.25, 1, P.white, 1 - (age / 4) * 0.7);
-  }
-  if (age >= 0 && age <= 7) {
-    const t = age / 7;
-    const r = 20 + (1 - (1 - t) ** 3) * 12;
-    b.ellipseRing(panX, panY, r, r * 0.25, 3 - 2 * t, P.pale, 1 - t * 0.85);
-  }
+    // Flat shockwaves rolling out along the pan on the catch.
+    const age = f - CATCH;
+    if (age >= 0 && age <= 4 && on("Shockwave")) {
+      const r = 22 + (age / 4) * 10;
+      b.ellipseRing(panX, panY, r, r * 0.25, 1, P.white, 1 - (age / 4) * 0.7);
+    }
+    if (age >= 0 && age <= 7 && on("Shockwave")) {
+      const t = age / 7;
+      const r = 20 + (1 - (1 - t) ** 3) * 12;
+      b.ellipseRing(panX, panY, r, r * 0.25, 3 - 2 * t, P.pale, 1 - t * 0.85);
+    }
 
-  b.layer(
-    (l) => {
-      // Sizzle splash: droplets bouncing off the pan rim.
-      if (age >= 0 && age <= 8) {
-        for (let i = 0; i < 10; i++) {
-          const vx = (i - 4.5) * 0.9;
-          const vy = -3.5 - (i % 3);
-          const [x, y] = bouncePosition(panX, panY - 6, vx, vy, age, panY + 2);
-          l.rect(x, y, age < 4 ? 2 : 1, age < 4 ? 2 : 1, i % 2 ? P.pale : P.light);
-        }
-      }
-      // Steam curling up and healing pluses rising.
-      if (f >= CATCH + 1) {
+    const fadeOut = { outline: P.ink, fade: 1 - span(f, 18, 21) };
+    if (on("Splash")) {
+      b.layer(
+        (l) => {
+          // Sizzle splash: droplets bouncing off the pan rim.
+          if (age >= 0 && age <= 8) {
+            for (let i = 0; i < 10; i++) {
+              const vx = (i - 4.5) * 0.9;
+              const vy = -3.5 - (i % 3);
+              const [x, y] = bouncePosition(panX, panY - 6, vx, vy, age, panY + 2);
+              l.rect(x, y, age < 4 ? 2 : 1, age < 4 ? 2 : 1, i % 2 ? P.pale : P.light);
+            }
+          }
+        },
+        fadeOut,
+      );
+    }
+    // Steam curling up.
+    if (f >= CATCH + 1 && on("Steam")) {
+      b.layer((l) => {
         for (let k = 0; k < 3; k++) {
           const t = (f - CATCH - 1 + k * 2) % 6;
           for (let j = 0; j < 4; j++) {
@@ -145,6 +165,11 @@ const effect: Effect = (b, f) => {
             l.set(x, y, P.pale);
           }
         }
+      }, fadeOut);
+    }
+    // Healing pluses rising.
+    if (f >= CATCH + 1 && on("Pluses")) {
+      b.layer((l) => {
         for (let i = 0; i < 12; i++) {
           const born = CATCH + 2 + rand(`kc-b-${i}`) * 6;
           const t = f - born;
@@ -155,12 +180,15 @@ const effect: Effect = (b, f) => {
           const y = panY - 16 - rand(`kc-y-${i}`) * 20 - t * 3.5;
           plus(l, x, y, t < 1 ? 1 : t < 5 ? 2 : 1, i % 3 === 0 ? P.white : i % 3 === 1 ? P.pale : P.light);
         }
-      }
-    },
-    { outline: P.ink, fade: 1 - span(f, 18, 21) },
-  );
+      }, fadeOut);
+    }
 
-  b.layer((l) => finalTwinkle(l, panX, panY - 6, f - (POP + 4), P), { outline: P.ink });
+    if (on("Twinkle")) {
+      b.layer((l) => finalTwinkle(l, panX, panY - 6, f - (POP + 4), P), { outline: P.ink });
+    }
+  };
+
+  return withShake(effect, [[CATCH, 1]]);
 };
 
-export const kindness = withShake(effect, [[CATCH, 1]]);
+export const kindness = kindnessLayer();

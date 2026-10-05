@@ -39,26 +39,40 @@ const quill = (l: PixelBuffer, x: number, y: number, tilt: number, s = 1) => {
   l.line(...t([0, 0]), ...t([4, 0]), P.deep);
 };
 
-const effect: Effect = (b, f) => {
-  const s = popOut(span(f, POP, POP + 4));
-  const written = easeInOut(span(f, 0.5, DONE));
-  const tapped = f >= TAP;
-  const at = transform(CX, CY - 2, 0, s);
+// Layer names, bottom to top. `perseveranceLayer(name)` draws just that layer;
+// stacked in this order the layers rebuild the full effect.
+export const PERSEVERANCE_LAYERS = ["Sigil", "RuneRing", "Quill", "QuillSparkle", "InkGlitter", "Shockwave", "InkSplash", "Twinkle"];
 
-  if (s > 0) {
-    b.layer(
-      (l) => {
-        const n = Math.floor(written * SAMPLES);
-        const pulse = tapped && f > TAP + 1 ? (f % 2 === 0 ? 3 : 2) : 2;
-        const c = f === TAP ? P.white : tapped ? P.light : P.base;
-        for (let i = 1; i <= n; i++) {
-          l.thickLine(...at(sigil((i - 1) / SAMPLES)), ...at(sigil(i / SAMPLES)), pulse * Math.max(0.5, s), c);
-        }
-        if (tapped) {
-          for (let i = 1; i <= SAMPLES; i++) {
-            l.line(...at(sigil((i - 1) / SAMPLES)), ...at(sigil(i / SAMPLES)), P.white);
+export const perseveranceLayer = (only?: string): Effect => {
+  const on = (layer: string) => !only || only === layer;
+  const effect: Effect = (b, f) => {
+    const s = popOut(span(f, POP, POP + 4));
+    const written = easeInOut(span(f, 0.5, DONE));
+    const tapped = f >= TAP;
+    const at = transform(CX, CY - 2, 0, s);
+
+    if (s > 0 && on("Sigil")) {
+      b.layer(
+        (l) => {
+          const n = Math.floor(written * SAMPLES);
+          const pulse = tapped && f > TAP + 1 ? (f % 2 === 0 ? 3 : 2) : 2;
+          const c = f === TAP ? P.white : tapped ? P.light : P.base;
+          for (let i = 1; i <= n; i++) {
+            l.thickLine(...at(sigil((i - 1) / SAMPLES)), ...at(sigil(i / SAMPLES)), pulse * Math.max(0.5, s), c);
           }
-          l.disc(...at(DOT), 2.5 * s, f === TAP ? P.white : P.pale);
+          if (tapped) {
+            for (let i = 1; i <= SAMPLES; i++) {
+              l.line(...at(sigil((i - 1) / SAMPLES)), ...at(sigil(i / SAMPLES)), P.white);
+            }
+            l.disc(...at(DOT), 2.5 * s, f === TAP ? P.white : P.pale);
+          }
+        },
+        { outline: f === TAP + 1 ? P.white : P.ink },
+      );
+    }
+    if (s > 0 && tapped && on("RuneRing")) {
+      b.layer(
+        (l) => {
           // Rune ring that snaps into place on the tap.
           const ring = f === TAP ? 1.25 : f === TAP + 1 ? 0.94 : 1;
           const [cx, cy] = at([0, 0]);
@@ -68,85 +82,93 @@ const effect: Effect = (b, f) => {
             const a = (i * TAU) / 6 + (f - TAP) * 0.12;
             rune(l, cx + Math.cos(a) * 28.5 * ring * s, cy + Math.sin(a) * 28.5 * ring * s, i, P.pale);
           }
-        }
-      },
-      { outline: f === TAP + 1 ? P.white : P.ink },
-    );
-  }
-
-  // The quill: pops in, writes, lifts, taps the dot, hops off and
-  // vanishes in a sparkle (it never flies out of the card).
-  const qs = f < 2 ? ([0.6, 1.15] as number[])[f] : f > TAP ? ([1, 1.15, 0.7, 0.3] as number[])[f - TAP - 1] ?? 0 : 1;
-  const [hx, hy] = DOT;
-  const hop = (k: number) => [CX + hx + 10 * k, CY - 2 + hy - 22 * k + 8 * k * k] as Point;
-  if (qs > 0) {
-    let [x, y] = f < DONE ? sigil(Math.min(1, written)) : DOT;
-    x += CX;
-    y += CY - 2;
-    let tilt = 0;
-    if (f === DONE) {
-      y -= 6; // lift before the tap
-      tilt = -0.2;
+        },
+        { outline: f === TAP + 1 ? P.white : P.ink },
+      );
     }
-    if (f === TAP) {
-      tilt = 0.12; // pressed down on the dot
-    }
-    if (f > TAP) {
-      [x, y] = hop(easeOut(span(f, TAP, TAP + 4)));
-      tilt = -(f - TAP) * 0.5;
-    }
-    b.layer(
-      (l) => {
-        quill(l, x, y, tilt, qs);
-        if (f > 0 && f < DONE) {
-          l.sparkle(x, y, f % 2 ? 2 : 1, P.pale, P.white);
-        }
-      },
-      { outline: P.ink },
-    );
-  }
-  // The quill's little goodbye sparkle.
-  const qa = f - (TAP + 4);
-  if (qa >= 0 && qa <= 2) {
-    const [x, y] = hop(1);
-    b.layer((l) => l.sparkle(x + 8, y - 12, ([4, 3, 1] as number[])[qa], P.pale, P.white), { outline: P.ink });
-  }
 
-  // Ink glitter drifting down off the fresh line while it's written.
-  if (f >= 2 && f <= DONE + 2) {
-    b.layer(
-      (l) => {
-        for (let k = 1; k <= 5; k++) {
-          const tt = f - k * 0.8;
-          if (tt < 1) {
-            continue;
-          }
-          const [x, y] = sigil(Math.min(1, easeInOut(span(tt, 0.5, DONE))));
-          l.set(CX + x + ((k % 2) * 2 - 1), CY - 2 + y + k * 1.6, k < 3 ? P.white : P.pale);
-        }
-      },
-      { outline: P.ink },
-    );
-  }
-
-  doubleShock(b, CX, CY - 2, f - TAP, P);
-
-  b.layer(
-    (l) => {
-      // Ink splashing from the tap and bouncing.
-      const age = f - TAP;
-      if (age >= 0 && age <= 8) {
-        for (let i = 0; i < 8; i++) {
-          const vx = (i - 3.5) * 0.9;
-          const vy = -3 - (i % 3);
-          const [x, y] = bouncePosition(CX + DOT[0], CY - 2 + DOT[1], vx, vy, age, CY + 28);
-          l.rect(x, y, age < 4 ? 2 : 1, age < 4 ? 2 : 1, i % 2 ? P.base : P.light);
-        }
+    // The quill: pops in, writes, lifts, taps the dot, hops off and
+    // vanishes in a sparkle (it never flies out of the card).
+    const qs = f < 2 ? ([0.6, 1.15] as number[])[f] : f > TAP ? ([1, 1.15, 0.7, 0.3] as number[])[f - TAP - 1] ?? 0 : 1;
+    const [hx, hy] = DOT;
+    const hop = (k: number) => [CX + hx + 10 * k, CY - 2 + hy - 22 * k + 8 * k * k] as Point;
+    if (qs > 0 && on("Quill")) {
+      let [x, y] = f < DONE ? sigil(Math.min(1, written)) : DOT;
+      x += CX;
+      y += CY - 2;
+      let tilt = 0;
+      if (f === DONE) {
+        y -= 6; // lift before the tap
+        tilt = -0.2;
       }
-    },
-    { outline: P.ink, fade: 1 - span(f, 17, 20) },
-  );
-  b.layer((l) => finalTwinkle(l, CX, CY - 2, f - (POP + 4), P), { outline: P.ink });
+      if (f === TAP) {
+        tilt = 0.12; // pressed down on the dot
+      }
+      if (f > TAP) {
+        [x, y] = hop(easeOut(span(f, TAP, TAP + 4)));
+        tilt = -(f - TAP) * 0.5;
+      }
+      b.layer(
+        (l) => {
+          quill(l, x, y, tilt, qs);
+          if (f > 0 && f < DONE) {
+            l.sparkle(x, y, f % 2 ? 2 : 1, P.pale, P.white);
+          }
+        },
+        { outline: P.ink },
+      );
+    }
+    // The quill's little goodbye sparkle.
+    const qa = f - (TAP + 4);
+    if (qa >= 0 && qa <= 2 && on("QuillSparkle")) {
+      const [x, y] = hop(1);
+      b.layer((l) => l.sparkle(x + 8, y - 12, ([4, 3, 1] as number[])[qa], P.pale, P.white), { outline: P.ink });
+    }
+
+    // Ink glitter drifting down off the fresh line while it's written.
+    if (f >= 2 && f <= DONE + 2 && on("InkGlitter")) {
+      b.layer(
+        (l) => {
+          for (let k = 1; k <= 5; k++) {
+            const tt = f - k * 0.8;
+            if (tt < 1) {
+              continue;
+            }
+            const [x, y] = sigil(Math.min(1, easeInOut(span(tt, 0.5, DONE))));
+            l.set(CX + x + ((k % 2) * 2 - 1), CY - 2 + y + k * 1.6, k < 3 ? P.white : P.pale);
+          }
+        },
+        { outline: P.ink },
+      );
+    }
+
+    if (on("Shockwave")) {
+      doubleShock(b, CX, CY - 2, f - TAP, P);
+    }
+
+    if (on("InkSplash")) {
+      b.layer(
+        (l) => {
+          // Ink splashing from the tap and bouncing.
+          const age = f - TAP;
+          if (age >= 0 && age <= 8) {
+            for (let i = 0; i < 8; i++) {
+              const vx = (i - 3.5) * 0.9;
+              const vy = -3 - (i % 3);
+              const [x, y] = bouncePosition(CX + DOT[0], CY - 2 + DOT[1], vx, vy, age, CY + 28);
+              l.rect(x, y, age < 4 ? 2 : 1, age < 4 ? 2 : 1, i % 2 ? P.base : P.light);
+            }
+          }
+        },
+        { outline: P.ink, fade: 1 - span(f, 17, 20) },
+      );
+    }
+    if (on("Twinkle")) {
+      b.layer((l) => finalTwinkle(l, CX, CY - 2, f - (POP + 4), P), { outline: P.ink });
+    }
+  };
+
+  return withShake(effect, [[TAP, 1]]);
 };
 
-export const perseverance = withShake(effect, [[TAP, 1]]);
+export const perseverance = perseveranceLayer();
