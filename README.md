@@ -64,7 +64,7 @@ fully transparent, and fades use dithering.
   `VfxLayers<Effect>` is a still with a row per layer (bottom layer first) and a column per frame; stacked in order
   the layers rebuild the full effect exactly.
 - Sound effects: `python3 scripts/sfx/make_sfx.py` synthesises a sound for the knife, save star, quill, pan, glove and
-  Justice badge
+  Justice badge, a second acoustic set (`-v2`) for all of them except the pan, and one for the butterfly swarm
   (timed to their frames) into `out/sfx/<Effect>/` as WAV, OGG and MP3, plus a preview MP4 with the animation.
 - The cast effects never touch the canvas edge (the game shows them over a transparent background, so anything
   cut off at the edge would look wrong). Elements may go outside the card (`{ x0: 15, y0: 4, x1: 94, y1: 121 }`)

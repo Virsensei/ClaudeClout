@@ -11,7 +11,7 @@ Writes, per effect, into out/sfx/<Effect>/:
 and a preview video with the animation and the sound, out/sfx/<Effect>/<Effect>-preview.mp4.
 
 Run: python3 scripts/sfx/make_sfx.py            (all sounds)
-     python3 scripts/sfx/make_sfx.py ClassJustice (just one)
+     python3 scripts/sfx/make_sfx.py ClassJustice (just one; ClassJustice-v2 for the second set)
 Tweak a sound by editing its function below (times are in frames).
 """
 
@@ -419,13 +419,257 @@ def justice():
     return m.master(0.22, 0.4)
 
 
+# ------------------------------------------------- second set: instruments
+
+def music_box(freq, dur=0.6):
+    """Music-box tine: a pure tone with a bright, quickly fading overtone."""
+    t = tt(dur)
+    s = np.sin(2 * np.pi * freq * t) + 0.3 * np.sin(2 * np.pi * freq * 4.2 * t) * np.exp(-t * 30)
+    return s * env(dur, 0.001, dur * 0.55)
+
+
+def pluck(freq, dur=0.8, bright=0.5):
+    """Plucked string (Karplus-Strong): harp / guitar."""
+    n = int(dur * SR)
+    p = max(2, int(SR / freq))
+    buf = lowpass(RNG.uniform(-1, 1, p), 2000 + 8000 * bright)
+    out = np.zeros(n)
+    for i in range(n):
+        out[i] = buf[i % p]
+        buf[i % p] = 0.996 * 0.5 * (buf[i % p] + buf[(i + 1) % p])
+    return out * env(dur, 0.001, dur, 0, 0.05)
+
+
+def bell(freq, dur=1.2, partials=((1, 1), (2.0, 0.5), (2.76, 0.6), (5.4, 0.25), (8.9, 0.1))):
+    t = tt(dur)
+    s = sum(g * np.sin(2 * np.pi * freq * r * t) * np.exp(-t * (2.5 + r * 1.2) / dur) for r, g in partials)
+    return s * env(dur, 0.001, dur * 2)
+
+
+def gong(freq=110, dur=1.6):
+    return bell(freq, dur, ((1, 1), (1.47, 0.7), (2.09, 0.6), (2.56, 0.4), (3.4, 0.3), (4.9, 0.15)))
+
+
+def gavel(pitch=1.0):
+    """Wooden gavel strike: a sharp click and a hollow wooden body."""
+    body = bandpass(noise(0.12), 350 * pitch, 900 * pitch) * env(0.12, 0.0005, 0.04) * 3
+    tone = osc("sine", lambda t: 190 * pitch * (1 + 0.5 * np.exp(-t * 60)), 0.15) * env(0.15, 0.0005, 0.06)
+    click = highpass(noise(0.004), 3000) * env(0.004, 0.0001, 0.0015)
+    return np.tanh(stack(body, 0.8 * tone, 0.7 * click) * 1.5)
+
+
+def snare(dur=0.12):
+    return stack(bandpass(noise(dur), 1500, 8000) * env(dur, 0.0005, dur * 0.5), 0.5 * osc("triangle", 190, dur) * env(dur, 0.0005, 0.03))
+
+
+def cymbal(dur=1.0):
+    n = highpass(noise(dur), 5000)
+    ring = osc("square", 3400, dur) * osc("square", 5170, dur)  # ring-modulated metal shimmer
+    return (n + 0.3 * highpass(ring, 4000)) * env(dur, 0.001, dur * 0.6)
+
+
+def punch():
+    """A meaty body hit: low thud, a mid 'thwack' and a skin slap."""
+    thud = thump(110, 38, 0.3)
+    thwack = lowpass(noise(0.09), 900) * env(0.09, 0.0005, 0.03) * 2
+    slap = highpass(noise(0.02), 2500) * env(0.02, 0.0002, 0.006)
+    return np.tanh(stack(1.2 * thud, thwack, 0.8 * slap) * 1.8)
+
+
+def squeak(freq=2800, dur=0.09):
+    """Sneaker squeak: a fast warbling chirp."""
+    s = osc("sine", lambda t: freq * (1 + 0.25 * np.sin(2 * np.pi * 45 * t) + 0.3 * t / dur), dur)
+    return s * env(dur, 0.005, dur * 0.6)
+
+
+def choir(freqs, dur, vowel=(700, 1150)):
+    """Soft 'aah' pad: detuned saws through two formant filters."""
+    src = sum(osc("saw", f * d, dur) for f in freqs for d in (0.997, 1.003))
+    v = bandpass(src, vowel[0] * 0.8, vowel[0] * 1.25) + 0.6 * bandpass(src, vowel[1] * 0.85, vowel[1] * 1.2)
+    return v / len(freqs)
+
+
+def droplet(freq=700, dur=0.06):
+    """Water 'bloop': a sine that quickly bends up."""
+    return osc("sine", lambda t: freq * (1 + 1.6 * t / dur), dur) * env(dur, 0.001, dur * 0.5)
+
+
+def flutter(dur, rate=18, bright=2500):
+    """Soft wing flaps: airy noise pulsing at the flap rate."""
+    flaps = 0.5 + 0.5 * np.sin(2 * np.pi * rate * tt(dur))
+    return bandpass(noise(dur), 300, bright) * flaps ** 3 * env(dur, 0.03, dur, 0.6, dur * 0.4)
+
+
+def swell(dur, lo=2000):
+    """Reverse-cymbal swell rising into a hit."""
+    return highpass(noise(dur), lo) * np.linspace(0, 1, int(dur * SR)) ** 3
+
+
+# ----------------------------------------------------- second set: sounds
+
+def knife_v2():
+    """Patience, music box: every tick plays the next note of a little clockwork tune; the swing is an
+    airy blade swish, a reverse swell holds the breath, the cut bursts with a glassy crash and a gong."""
+    m = Mix()
+    tune = [hz(n, o) for n, o in [("E", 6), ("G", 6), ("B", 6), ("A", 6), ("G", 6), ("E", 6), ("F#", 6), ("B", 5)]]
+    for f, fq in enumerate(tune):
+        m.add(music_box(fq, 0.7), at(f), 0.42)
+        m.add(highpass(noise(0.01), 4000) * env(0.01, 0.0002, 0.003), at(f), 0.25)  # the clockwork click
+    m.add(whoosh(0.14, 1500, 9000, 3), at(7) - 0.05, 0.55)  # blade swish
+    m.add(bell(hz("B", 6), 0.5, ((1, 1), (2.76, 0.5), (5.4, 0.3))), at(7), 0.25)
+    m.add(swell(at(3), 3000), at(7.2), 0.35)  # holding its breath ...
+    m.add(cymbal(0.7), at(10), 0.4)  # ... the cut bursts
+    m.add(gong(98, 0.8), at(10), 0.4)
+    m.add(thump(140, 45, 0.25), at(10), 0.7)
+    for k in range(6):
+        m.add(music_box(hz("E", 7) * [1, 1.5, 1.26, 2, 1.68, 2.52][k], 0.25), at(10) + 0.03 * k, 0.12)
+    m.add(music_box(hz("B", 6), 0.6), at(13), 0.3)
+    m.add(pop_out(900), at(16), 0.2)
+    for k, fq in enumerate([hz("E", 6), hz("B", 6), hz("E", 7)]):  # the tune's last phrase as the twinkle
+        m.add(music_box(fq, 0.5), at(19) + 0.06 * k, 0.32)
+    return m.master(0.3, 0.6)
+
+
+def star_v2():
+    """Determination, power-up: a choir swells as the star charges, a huge power-up chord with a sub drop
+    on the burst, then glockenspiel sparkles cascading down as the little stars wink away."""
+    m = Mix()
+    m.add(droplet(500, 0.08), at(0), 0.4)
+    ch = choir([hz("C", 4), hz("G", 4), hz("C", 5)], at(7.2))
+    m.add(ch * np.linspace(0.1, 1, len(ch)) ** 1.5, at(0), 0.55)
+    rise = osc("square", lambda t: 200 * 2 ** (3 * t / at(6.5)), at(6.5), 0.5)
+    m.add(lowpass(rise, 3000) * np.linspace(0.2, 1, len(rise)) * 0.4, at(0.5), 0.35)
+    m.add(swell(at(2), 2500), at(5), 0.3)
+    # The burst: sub drop, crash and a bright major chord.
+    m.add(osc("sine", lambda t: 90 * np.exp(-t * 3) + 30, 0.7) * env(0.7, 0.002, 0.4), at(7), 0.8)
+    m.add(cymbal(1.0), at(7), 0.35)
+    for fq in [hz("C", 5), hz("E", 5), hz("G", 5), hz("C", 6)]:
+        m.add(lowpass(osc("saw", fq, 0.8) + osc("saw", fq * 1.006, 0.8), 3500) * env(0.8, 0.005, 0.45), at(7), 0.1)
+    m.add(choir([hz("C", 5), hz("E", 5), hz("G", 5)], 0.9) * env(0.9, 0.01, 0.5), at(7), 0.4)
+    # Glockenspiel cascade, one note per little star.
+    glock = [hz(n, o) for n, o in [("G", 7), ("E", 7), ("C", 7), ("A", 6), ("G", 6), ("E", 6), ("D", 6), ("C", 6)]]
+    for k, f in enumerate([12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16]):
+        m.add(bell(glock[k], 0.4, ((1, 1), (2.76, 0.3), (5.4, 0.1))), at(f), 0.2)
+    m.add(pop_out(800), at(16), 0.2)
+    m.add(bell(hz("C", 7), 0.8, ((1, 1), (2.0, 0.4), (3.0, 0.2))), at(19), 0.35)
+    m.add(bell(hz("G", 7), 0.6, ((1, 1), (2.0, 0.3))), at(19.6), 0.25)
+    return m.master(0.35, 0.7)
+
+
+def glove_v2():
+    """Bravery, boxing ring: the bell rings for the round, a snare roll builds the wind-up, a meaty punch
+    with a cymbal crash, sneakers squeak on the hops, and the bell rings the round out."""
+    m = Mix()
+    for k in range(2):  # ding-ding
+        m.add(bell(1300, 0.9), at(0) + k * 0.16, 0.35)
+    # Snare roll speeding up through the wind-up.
+    t, gap = at(1.5), 0.075
+    while t < at(5.9):
+        m.add(snare(0.08), t, 0.18 + 0.25 * (t - at(1.5)) / (at(5.9) - at(1.5)))
+        t += gap
+        gap = max(0.028, gap * 0.85)
+    m.add(punch(), at(6), 1.0)
+    m.add(cymbal(1.1), at(6), 0.45)
+    m.add(thump(90, 40, 0.3), at(6), 0.6)
+    m.add(punch() * 0.5, at(8), 0.3)  # springs back
+    for f, fq in [(10.6, 2900), (11, 3300), (12.6, 3000), (13, 3500)]:
+        m.add(squeak(fq), at(f), 0.2)
+    for f in [11, 13]:
+        m.add(thump(180, 90, 0.08), at(f), 0.35)
+    m.add(bell(2349, 0.35, ((1, 1), (2.76, 0.3))), at(14), 0.25)  # ready glint
+    m.add(pop_out(800), at(16), 0.2)
+    m.add(bell(1300, 1.2), at(19), 0.4)  # the round-ending bell
+    return m.master(0.25, 0.5)
+
+
+def quill_v2():
+    """Perseverance, calligraphy: soft brush strokes over a rising harp run while the sigil is written,
+    a deep temple bell and choir on the tap, water-drop ink, and a harp flourish to finish."""
+    m = Mix()
+    m.add(pluck(hz("D", 5), 0.5), at(0), 0.35)
+    harp = [hz(n, o) for n, o in [("D", 4), ("F", 4), ("A", 4), ("C", 5), ("D", 5), ("F", 5), ("A", 5), ("C", 6), ("D", 6)]]
+    for k, fq in enumerate(harp):
+        m.add(pluck(fq, 0.9, 0.4), at(1) + k * (at(9) - at(1)) / len(harp), 0.3)
+    for k in range(7):  # brush strokes
+        d = 0.12 + RNG.uniform(0, 0.06)
+        m.add(lowpass(highpass(noise(d), 600), 4000) * np.sin(np.pi * tt(d) / d) ** 2, at(1.2) + k * 0.15, 0.18)
+    m.add(gong(hz("D", 2) * 1.5, 0.85), at(10), 0.45)
+    m.add(gavel(0.7), at(10), 0.35)
+    m.add(choir([hz("D", 4), hz("A", 4), hz("F", 5)], 1.0, (500, 900)) * env(1.0, 0.04, 0.6), at(10), 0.35)
+    for k, f in enumerate([11, 11.6, 12.3, 13.2, 14.4]):
+        m.add(droplet(650 - 50 * k, 0.07), at(f), 0.3)
+    m.add(whoosh(0.15, 800, 3000), at(11), 0.15)  # the quill hops off
+    m.add(pop_out(800), at(16), 0.2)
+    for k, fq in enumerate([hz("D", 5), hz("F", 5), hz("A", 5), hz("D", 6)]):
+        m.add(pluck(fq, 0.7, 0.6), at(19) + 0.05 * k, 0.3)
+    return m.master(0.3, 0.7)
+
+
+def justice_v2():
+    """Justice, courtroom: tense ticking while the crosshair closes, two gavel knocks on the lock-on, the
+    badge lands with a big gavel slam and a trumpet fanfare, then the coin settles with a rattle."""
+    m = Mix()
+    for f in range(0, 5):
+        m.add(highpass(noise(0.008), 2500) * env(0.008, 0.0002, 0.003), at(f), 0.3)
+        m.add(osc("triangle", hz("D", 3), 0.12) * env(0.12, 0.002, 0.08), at(f), 0.2)
+    m.add(gavel(1.1), at(5), 0.5)
+    m.add(gavel(1.1), at(6), 0.6)
+    m.add(gavel(0.8), at(7), 1.0)  # order in the court!
+    m.add(thump(120, 40, 0.35), at(7), 0.7)
+    fanfare = [(0, hz("C", 5)), (0.07, hz("E", 5)), (0.14, hz("G", 5)), (0.21, hz("C", 6))]
+    for dt, fq in fanfare:  # trumpet: bright saw through a lowpass that opens as it blows
+        tone = osc("saw", fq, 0.45) + 0.4 * osc("square", fq, 0.45, 0.3)
+        tone = lowpass(tone, 3500) * env(0.45, 0.02, 0.25, 0.35, 0.08)
+        m.add(tone, at(7.3) + dt, 0.13)
+    m.add(whoosh(at(3), 2500, 9000, 2.5), at(9), 0.2)  # the shine
+    # The coin flip settling like a spinning coin: a rattle that speeds up and stops with a clink.
+    t, gap = at(11), 0.07
+    while t < at(15):
+        m.add(bell(2400 + 600 * (t - at(11)), 0.06, ((1, 1), (2.76, 0.4))), t, 0.2)
+        t += gap
+        gap = max(0.018, gap * 0.82)
+    m.add(bell(2637, 0.6, ((1, 1), (2.76, 0.5), (5.4, 0.2))), at(15), 0.35)
+    m.add(pop_out(900), at(17), 0.2)
+    for k, fq in enumerate([hz("G", 6), hz("C", 7)]):
+        m.add(bell(fq, 0.6, ((1, 1), (2.0, 0.3))), at(19) + 0.08 * k, 0.3)
+    return m.master(0.28, 0.5)
+
+
+def swarm():
+    """Integrity, butterfly swarm: a soft glow gathers and blooms with a chime, then each butterfly flutters
+    off with its own harp note when it's released and a tiny sparkle when it vanishes."""
+    m = Mix()
+    m.add(swell(at(3), 3500) * 0.6, at(0), 0.35)
+    m.add(bell(hz("A", 5), 1.0, ((1, 1), (2.0, 0.3), (3.0, 0.15))), at(3), 0.35)  # the bloom
+    m.add(bell(hz("E", 6), 0.9, ((1, 1), (2.0, 0.3))), at(3), 0.25)
+    m.add(whoosh(0.3, 600, 2500), at(3), 0.25)
+    # (release frame, exit frame) for each butterfly, from the effect's own timing.
+    flyers = [(3.24, 14.38), (3.63, 13.06), (4.13, 14.53), (4.62, 14.36), (5.02, 13.55),
+              (5.53, 13.56), (5.82, 16.58), (6.33, 15.07), (6.81, 15.27), (7.15, 14.25)]
+    penta = [hz(n, o) for n, o in [("A", 5), ("C#", 6), ("E", 6), ("F#", 6), ("A", 6), ("B", 6), ("C#", 7), ("E", 7), ("F#", 7), ("A", 7)]]
+    for k, (release, leave) in enumerate(flyers):
+        m.add(pluck(penta[k], 0.6, 0.7), at(release), 0.18)
+        life = at(leave + 2) - at(release)
+        m.add(flutter(life, 14 + 2 * (k % 4), 2000 + 150 * k), at(release), 0.05)
+        m.add(bell(penta[(k * 3) % len(penta)] * 2, 0.25, ((1, 1), (2.76, 0.2))), at(leave + 2.5), 0.12)
+    m.add(pluck(hz("A", 6), 0.8, 0.8), at(18.5), 0.25)
+    return m.master(0.35, 0.8)
+
+
+# file name -> (the VFX it goes with, the sound). v2 is the second, acoustic set.
 SOUNDS = {
-    "CastKnifePatience": knife,
-    "CastStarDetermination": star,
-    "ClassV3Perseverance": quill,
-    "ClassV3Kindness": pan,
-    "CastGloveBravery": glove,
-    "ClassJustice": justice,
+    "CastKnifePatience": ("CastKnifePatience", knife),
+    "CastStarDetermination": ("CastStarDetermination", star),
+    "ClassV3Perseverance": ("ClassV3Perseverance", quill),
+    "ClassV3Kindness": ("ClassV3Kindness", pan),
+    "CastGloveBravery": ("CastGloveBravery", glove),
+    "ClassJustice": ("ClassJustice", justice),
+    "CastKnifePatience-v2": ("CastKnifePatience", knife_v2),
+    "CastStarDetermination-v2": ("CastStarDetermination", star_v2),
+    "ClassV3Perseverance-v2": ("ClassV3Perseverance", quill_v2),
+    "CastGloveBravery-v2": ("CastGloveBravery", glove_v2),
+    "ClassJustice-v2": ("ClassJustice", justice_v2),
+    "CastSwarmIntegrity": ("CastSwarmIntegrity", swarm),
 }
 
 
@@ -472,13 +716,13 @@ if __name__ == "__main__":
 
     picked = sys.argv[1:] or list(SOUNDS)
     for name in picked:
-        make = SOUNDS[name]
-        d = os.path.join(ROOT, "out", "sfx", name)
+        effect, make = SOUNDS[name]
+        d = os.path.join(ROOT, "out", "sfx", effect)
         os.makedirs(d, exist_ok=True)
         y = make()
         wav = os.path.join(d, f"{name}.wav")
         write_wav(wav, y)
         ffmpeg("-i", wav, "-c:a", "libvorbis", "-q:a", "6", os.path.join(d, f"{name}.ogg"))
         ffmpeg("-i", wav, "-c:a", "libmp3lame", "-b:a", "192k", os.path.join(d, f"{name}.mp3"))
-        preview(name, wav, os.path.join(d, f"{name}-preview.mp4"))
+        preview(effect, wav, os.path.join(d, f"{name}-preview.mp4"))
         print(f"{name}: {len(y) / SR:.2f} s, peak {np.max(np.abs(y)):.2f}")
