@@ -10,7 +10,8 @@ Writes, per effect, into out/sfx/<Effect>/:
   <Effect>.mp3
 and a preview video with the animation and the sound, out/sfx/<Effect>/<Effect>-preview.mp4.
 
-Run: python3 scripts/sfx/make_sfx.py
+Run: python3 scripts/sfx/make_sfx.py            (all sounds)
+     python3 scripts/sfx/make_sfx.py ClassJustice (just one)
 Tweak a sound by editing its function below (times are in frames).
 """
 
@@ -363,12 +364,54 @@ def glove():
     return m.master(0.18)
 
 
+def justice():
+    """Justice: a crosshair whirs in and locks on, the badge stamps down with a brass stab, a shine sweeps
+    across, it flips like a coin and lands with a clink, then glints and twinkles away."""
+    m = Mix()
+    m.add(pop_in(600), at(0), 0.45)
+    # Targeting: a servo whir while the crosshair closes, and beeps that climb and quicken.
+    whir = osc("saw", lambda t: 120 + 80 * t / at(5), at(5)) * (0.6 + 0.4 * np.sin(2 * np.pi * 24 * tt(at(5))))
+    m.add(lowpass(whir, 900) * env(at(5), 0.05, 2, 0.6, 0.05), at(0), 0.18)
+    for k, f in enumerate([0.5, 2, 3.2, 4.2]):
+        m.add(crush(blip(1000 + 180 * k, 0.05, "square", 0.5, 0.035), 6), at(f), 0.22)
+    # Lock-on: a quick double beep, the second higher.
+    m.add(crush(blip(1760, 0.045, "square", 0.5, 0.03), 6), at(5), 0.3)
+    m.add(crush(blip(2350, 0.08, "square", 0.5, 0.06), 6), at(6), 0.32)
+    # The stamp: heavy thump, metal clank, and a bright brass stab (root, fifth, octave, third).
+    m.add(thump(150, 45, 0.4), at(7), 1.0)
+    m.add(crack(0.1, 6000), at(7), 0.6)
+    clank = sum(np.sin(2 * np.pi * f * tt(0.35)) * g for f, g in [(1180, 1), (1630, 0.7), (2470, 0.5), (3310, 0.3)])
+    m.add(clank * env(0.35, 0.001, 0.12), at(7), 0.35)
+    for fq in [hz("F", 4), hz("C", 5), hz("F", 5), hz("A", 5)]:
+        brass = lowpass(osc("saw", fq, 0.45) + 0.5 * osc("square", fq * 1.004, 0.45, 0.3), 2600)
+        m.add(brass * env(0.45, 0.01, 0.3, 0.25, 0.1), at(7), 0.12)
+    # The shine sweeping across the badge.
+    m.add(whoosh(at(3), 2500, 9000, 2.5), at(9), 0.3)
+    m.add(ping(hz("A", 6), 0.3, 0.5), at(10), 0.18)
+    # Glitter tinkling as it bounces.
+    for k, f in enumerate([8.5, 9.4, 10.6, 11.5, 12.8, 14.0, 15.5]):
+        m.add(ping(3000 + RNG.uniform(0, 2500), 0.08, 0.4), at(f), 0.1)
+    # The coin flip: a metal ring that flutters as it spins, then lands with a clink.
+    dur = at(4)
+    ring = sum(np.sin(2 * np.pi * f * tt(dur)) * g for f, g in [(2093, 1), (2093 * 2.76, 0.4), (2093 * 5.4, 0.15)])
+    spin = np.abs(np.cos(2 * np.pi * 4 * tt(dur))) ** 2  # four bright flashes as the faces turn
+    m.add(ring * spin * env(dur, 0.005, 2, 0.7, 0.02), at(11), 0.32)
+    m.add(whoosh(at(2), 800, 1800), at(11), 0.12)
+    m.add(thump(260, 130, 0.08), at(15), 0.45)
+    m.add(ping(2637, 0.45, 0.9), at(15), 0.35)  # the clink, then the glint
+    m.add(ping(hz("E", 7), 0.3, 0.5), at(15.5), 0.18)
+    m.add(pop_out(900), at(17), 0.3)
+    m.add(twinkle(hz("A", 6)), at(19), 0.45)
+    return m.master(0.22, 0.4)
+
+
 SOUNDS = {
     "CastKnifePatience": knife,
     "CastStarDetermination": star,
     "ClassV3Perseverance": quill,
     "ClassV3Kindness": pan,
     "CastGloveBravery": glove,
+    "ClassJustice": justice,
 }
 
 
@@ -411,7 +454,11 @@ def preview(name, wav, out):
 
 
 if __name__ == "__main__":
-    for name, make in SOUNDS.items():
+    import sys
+
+    picked = sys.argv[1:] or list(SOUNDS)
+    for name in picked:
+        make = SOUNDS[name]
         d = os.path.join(ROOT, "out", "sfx", name)
         os.makedirs(d, exist_ok=True)
         y = make()
