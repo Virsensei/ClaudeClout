@@ -364,27 +364,41 @@ def glove():
     return m.master(0.18)
 
 
+def gunshot():
+    """Wild West revolver shot: a sharp crack, a punchy blast and a low boom."""
+    crack_ = highpass(noise(0.012), 1500) * env(0.012, 0.0002, 0.004)
+    blast = lowpass(noise(0.16), 3500) * env(0.16, 0.0005, 0.045)
+    boom = thump(130, 42, 0.32)
+    return np.tanh(2.5 * stack(1.4 * crack_, blast, 0.9 * boom)) * 0.9
+
+
 def justice():
-    """Justice: a crosshair whirs in and locks on, the badge stamps down with a brass stab, a shine sweeps
-    across, it flips like a coin and lands with a clink, then glints and twinkles away."""
+    """Justice: a Wild West showdown. The revolver cylinder spins while the crosshair closes, the hammer
+    cocks on the lock-on, the badge lands with a gunshot that echoes off the canyon and ricochets,
+    then a shine, a coin flip that lands with a clink, a glint and the twinkle."""
     m = Mix()
-    m.add(pop_in(600), at(0), 0.45)
-    # Targeting: a servo whir while the crosshair closes, and beeps that climb and quicken.
-    whir = osc("saw", lambda t: 120 + 80 * t / at(5), at(5)) * (0.6 + 0.4 * np.sin(2 * np.pi * 24 * tt(at(5))))
-    m.add(lowpass(whir, 900) * env(at(5), 0.05, 2, 0.6, 0.05), at(0), 0.18)
-    for k, f in enumerate([0.5, 2, 3.2, 4.2]):
-        m.add(crush(blip(1000 + 180 * k, 0.05, "square", 0.5, 0.035), 6), at(f), 0.22)
-    # Lock-on: a quick double beep, the second higher.
-    m.add(crush(blip(1760, 0.045, "square", 0.5, 0.03), 6), at(5), 0.3)
-    m.add(crush(blip(2350, 0.08, "square", 0.5, 0.06), 6), at(6), 0.32)
-    # The stamp: heavy thump, metal clank, and a bright brass stab (root, fifth, octave, third).
-    m.add(thump(150, 45, 0.4), at(7), 1.0)
-    m.add(crack(0.1, 6000), at(7), 0.6)
-    clank = sum(np.sin(2 * np.pi * f * tt(0.35)) * g for f, g in [(1180, 1), (1630, 0.7), (2470, 0.5), (3310, 0.3)])
-    m.add(clank * env(0.35, 0.001, 0.12), at(7), 0.35)
-    for fq in [hz("F", 4), hz("C", 5), hz("F", 5), hz("A", 5)]:
-        brass = lowpass(osc("saw", fq, 0.45) + 0.5 * osc("square", fq * 1.004, 0.45, 0.3), 2600)
-        m.add(brass * env(0.45, 0.01, 0.3, 0.25, 0.1), at(7), 0.12)
+    m.add(pop_in(600), at(0), 0.35)
+    # The cylinder spinning: ratchet clicks that slow down as the crosshair closes.
+    t, gap = at(0.3), 0.028
+    while t < at(4.6):
+        tick = stack(highpass(noise(0.006), 2500) * env(0.006, 0.0002, 0.002), ping(3200, 0.03, 0.3) * 0.3)
+        m.add(tick, t, 0.35)
+        t += gap
+        gap *= 1.12
+    # Cocking the hammer on the lock-on: click ... CLACK.
+    for f, g, fq in [(5, 0.45, 2400), (6, 0.7, 1700)]:
+        m.add(stack(highpass(noise(0.01), 1200) * env(0.01, 0.0002, 0.003), ping(fq, 0.06, 0.5) * 0.4), at(f), g)
+        m.add(lowpass(noise(0.02), 1500) * env(0.02, 0.0005, 0.006), at(f) + 0.022, g * 0.6)
+    # The shot as the badge lands, echoing off canyon walls (each echo further and duller).
+    shot = gunshot()
+    m.add(shot, at(7), 1.0)
+    far = lowpass(shot, 1800)
+    for k, (dt, g) in enumerate([(0.21, 0.32), (0.43, 0.2), (0.68, 0.12), (0.95, 0.07)]):
+        m.add(lowpass(far, 1800 - 300 * k), at(7) + dt, g)
+    # Ricochet: a whining 'pyeeoww' sliding down with a little wobble.
+    dur = 0.42
+    ric = osc("sine", lambda t: 3600 * (1 - 0.62 * t / dur) * (1 + 0.025 * np.sin(2 * np.pi * 28 * t)), dur)
+    m.add(ric * env(dur, 0.012, dur * 0.7), at(8), 0.2)
     # The shine sweeping across the badge.
     m.add(whoosh(at(3), 2500, 9000, 2.5), at(9), 0.3)
     m.add(ping(hz("A", 6), 0.3, 0.5), at(10), 0.18)
