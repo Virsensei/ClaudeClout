@@ -365,17 +365,34 @@ def glove():
 
 
 def gunshot():
-    """Wild West revolver shot: a sharp crack, a punchy blast and a low boom."""
-    crack_ = highpass(noise(0.012), 1500) * env(0.012, 0.0002, 0.004)
-    blast = lowpass(noise(0.16), 3500) * env(0.16, 0.0005, 0.045)
-    boom = thump(130, 42, 0.32)
-    return np.tanh(2.5 * stack(1.4 * crack_, blast, 0.9 * boom)) * 0.9
+    """Wild West shot, modelled on the reference shot (justice_shot.mp3): a click and a short low punch,
+    a 'pew' that slides down from ~2.6 kHz to ~1 kHz, a bright 2-4 kHz crack that hands over to a
+    1-2 kHz roar, a loud ~0.2 s hold with a tiny dip, then a mid-level ring that falls away by ~0.7 s,
+    with the top end closing down from ~7 kHz to ~4.5 kHz as it fades."""
+    dur = 0.85
+    t = tt(dur)
+    click = highpass(noise(0.004), 1500) * env(0.004, 0.0001, 0.0015)
+    punch_ = osc("sine", lambda t: 160 + 220 * np.exp(-t / 0.005), 0.08) * env(0.08, 0.002, 0.05)
+    f = lambda t: 1010 + 1590 * np.exp(-t / 0.06) - 200 * np.maximum(t - 0.3, 0)
+    pew = osc("triangle", f, dur) + 0.5 * osc("sine", lambda t: f(t) * 1.17, dur)
+    n = noise(dur)
+    bright = bandpass(n, 2000, 4000) * 4 * np.exp(-t / 0.1)
+    roar = bandpass(n, 880, 2000) * 3 * (1 - np.exp(-t / 0.09))
+    air = 0.2 * lowpass(n, 6000, 6) * np.exp(-t / 0.25)
+    hold = 0.34 * np.where(t < 0.48, np.exp(-(t - 0.21) * 2.5), np.exp(-0.27 * 2.5 - (t - 0.48) * 14))
+    e = np.where(t < 0.21, 0.5 + 0.5 * np.sin(np.pi * np.clip(t / 0.28, 0, 1)), hold) * np.clip(t / 0.002, 0, 1)
+    e[(t > 0.215) & (t < 0.235)] *= 0.4
+    body = (0.6 * pew + bright + roar + air) * e
+    low = lowpass(body, 4500, 6)
+    body = low + (body - low) * np.exp(-t / 0.3)
+    y = lowpass(np.tanh(1.3 * stack(0.6 * click, 1.3 * punch_, body)), 7000, 8)
+    return y / np.max(np.abs(y))
 
 
 def justice():
     """Justice: a Wild West showdown. The revolver cylinder spins while the crosshair closes, the hammer
-    cocks on the lock-on, the badge lands with a gunshot that echoes off the canyon and ricochets,
-    then a shine, a coin flip that lands with a clink, a glint and the twinkle."""
+    cocks on the lock-on, the badge lands with the gunshot, then a shine, a coin flip that lands with a
+    clink, a glint and the twinkle."""
     m = Mix()
     m.add(pop_in(600), at(0), 0.35)
     # The cylinder spinning: ratchet clicks that slow down as the crosshair closes.
@@ -389,16 +406,8 @@ def justice():
     for f, g, fq in [(5, 0.45, 2400), (6, 0.7, 1700)]:
         m.add(stack(highpass(noise(0.01), 1200) * env(0.01, 0.0002, 0.003), ping(fq, 0.06, 0.5) * 0.4), at(f), g)
         m.add(lowpass(noise(0.02), 1500) * env(0.02, 0.0005, 0.006), at(f) + 0.022, g * 0.6)
-    # The shot as the badge lands, echoing off canyon walls (each echo further and duller).
-    shot = gunshot()
-    m.add(shot, at(7), 1.0)
-    far = lowpass(shot, 1800)
-    for k, (dt, g) in enumerate([(0.21, 0.32), (0.43, 0.2), (0.68, 0.12), (0.95, 0.07)]):
-        m.add(lowpass(far, 1800 - 300 * k), at(7) + dt, g)
-    # Ricochet: a whining 'pyeeoww' sliding down with a little wobble.
-    dur = 0.42
-    ric = osc("sine", lambda t: 3600 * (1 - 0.62 * t / dur) * (1 + 0.025 * np.sin(2 * np.pi * 28 * t)), dur)
-    m.add(ric * env(dur, 0.012, dur * 0.7), at(8), 0.2)
+    # The shot as the badge lands.
+    m.add(gunshot(), at(7), 1.0)
     # The shine sweeping across the badge.
     m.add(whoosh(at(3), 2500, 9000, 2.5), at(9), 0.3)
     m.add(ping(hz("A", 6), 0.3, 0.5), at(10), 0.18)
