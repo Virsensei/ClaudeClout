@@ -798,7 +798,181 @@ def justice_ut():
     return ut_master(m)
 
 
-# file name -> (the VFX it goes with, the sound). -v2 is the second, acoustic set; -ut the third.
+# ------------------------------------------------- fourth set: warm ("-warm")
+# Rewarding but calm. One gesture per effect: a quiet build, one satisfying,
+# weighty hit and a warm consonant bloom that fades on its own. Soft materials
+# (felt mallet, wood, glass, kalimba, air), highs rolled off, gentle room,
+# every class in its own key so the set feels like a family.
+
+def soft(x, cutoff=6000):
+    return lowpass(x, cutoff, 2)
+
+
+def mallet(freq, dur=0.9, bright=0.4):
+    """Felt mallet on a wooden bar (marimba-like): round, woody, quick to settle."""
+    t = tt(dur)
+    body = np.sin(2 * np.pi * freq * t) * np.exp(-t * 4.5)
+    over = bright * np.sin(2 * np.pi * freq * 3.93 * t) * np.exp(-t * 18)
+    knock = lowpass(noise(0.012), 2000) * env(0.012, 0.0005, 0.004)
+    return stack((body + over) * np.clip(t / 0.003, 0, 1), 0.3 * knock)
+
+
+def glass(freq, dur=1.4):
+    """Soft glass bowl: a pure tone with a slow, gentle shimmer from a twin a hair apart."""
+    t = tt(dur)
+    y = np.sin(2 * np.pi * freq * t) + 0.8 * np.sin(2 * np.pi * freq * 1.0035 * t) + 0.15 * np.sin(2 * np.pi * freq * 2 * t)
+    return y * env(dur, 0.012, dur * 0.7) / 1.9
+
+
+def kalimba(freq, dur=0.8):
+    t = tt(dur)
+    y = np.sin(2 * np.pi * freq * t) * np.exp(-t * 5) + 0.25 * np.sin(2 * np.pi * freq * 5.4 * t) * np.exp(-t * 25)
+    return y * np.clip(t / 0.002, 0, 1)
+
+
+def felt_thump(freq=70, dur=0.35):
+    """The weight under a hit: a round low sine that settles, with a soft felt contact."""
+    s = osc("sine", lambda t: freq * (1 + 0.8 * np.exp(-t * 35)), dur) * env(dur, 0.002, dur * 0.45)
+    return stack(s, 0.25 * lowpass(noise(0.02), 900) * env(0.02, 0.001, 0.008))
+
+
+def wood_tick(freq=900):
+    """A soft wood-block tick."""
+    s = bandpass(noise(0.03), freq * 0.7, freq * 1.6) * env(0.03, 0.0005, 0.008) * 2
+    return stack(s, 0.5 * osc("triangle", freq, 0.04) * env(0.04, 0.0005, 0.012))
+
+
+def air(dur, f0=400, f1=2500):
+    """A soft breath of air rising into the moment."""
+    return soft(whoosh(dur, f0, f1, 1.2), 4000) * np.linspace(0.2, 1, int(dur * SR)) ** 1.5
+
+
+def bloom(freqs, dur=1.1):
+    """A warm chord that swells in just after the hit and fades: the 'reward'."""
+    y = sum(osc("triangle", f, dur) * 0.6 + np.sin(2 * np.pi * f * 1.002 * tt(dur)) * 0.4 for f in freqs)
+    return soft(y / len(freqs), 2500) * env(dur, 0.03, dur * 0.6)
+
+
+def warm_master(m, target=0.085):
+    """A small room, highs rolled off, and every sound brought to the same loudness."""
+    y = reverb(highpass(m.buf, 40), 0.6, 0.18)
+    y = lowpass(y, 9000)
+    y *= target / np.sqrt(np.mean(y ** 2))
+    y = np.tanh(y / 0.89) * 0.89  # gentle limiter keeps peaks round
+    fade = int(0.05 * SR)
+    y[-fade:] *= np.linspace(1, 0, fade)
+    return y
+
+
+# ------------------------------------------------------- fourth set: sounds
+
+def knife_warm():
+    """Patience (D): soft wood ticks keep time, a soft swish, a held breath, then a calm, weighty
+    resolution: a felt thump, A falling to D on the mallet, and a glass D-A-E bloom."""
+    m = Mix()
+    for f in range(0, 8):
+        m.add(wood_tick(1150 if f % 2 == 0 else 980), at(f), 0.55)
+    m.add(air(0.16, 900, 3500), at(7) - 0.1, 0.35)
+    m.add(air(at(2.6), 300, 900) * 0.6, at(7.4), 0.2)  # the held breath
+    m.add(felt_thump(73), at(10), 0.9)
+    m.add(mallet(hz("A", 5)), at(10), 0.5)
+    m.add(mallet(hz("D", 5)), at(10.9), 0.55)
+    m.add(bloom([hz("D", 4), hz("A", 4), hz("E", 5)]), at(10.2), 0.45)
+    m.add(glass(hz("D", 6), 1.0), at(10.9), 0.18)
+    return warm_master(m)
+
+
+def star_warm():
+    """Determination (C): a breath and a low pad swell through the charge, then the burst lands on a
+    felt thump with G resolving up to C and a full, soft C major bloom."""
+    m = Mix()
+    m.add(air(at(7), 250, 2500), at(0), 0.45)
+    pad = bloom([hz("C", 3), hz("G", 3)], at(7.2)) * np.linspace(0.1, 1, int(at(7.2) * SR)) ** 2
+    m.add(pad, at(0), 0.4)
+    m.add(felt_thump(65), at(7), 1.0)
+    m.add(mallet(hz("G", 5)), at(7), 0.5)
+    m.add(mallet(hz("C", 6)), at(7.9), 0.55)
+    m.add(bloom([hz("C", 4), hz("E", 4), hz("G", 4), hz("C", 5)], 1.2), at(7.1), 0.5)
+    m.add(glass(hz("E", 6), 1.0), at(7.9), 0.15)
+    return warm_master(m)
+
+
+def glove_warm():
+    """Bravery (F): a rising breath through the wind-up, one round, heavy punch with a low tom and an
+    F-C fifth, then two soft woody steps for the hops."""
+    m = Mix()
+    m.add(air(at(4), 200, 1800), at(2), 0.45)
+    m.add(felt_thump(60, 0.45), at(6), 1.0)
+    tom = osc("sine", lambda t: 95 * (1 + 0.6 * np.exp(-t * 20)), 0.4) * env(0.4, 0.002, 0.2)
+    m.add(tom, at(6), 0.6)
+    m.add(soft(lowpass(noise(0.05), 1800) * env(0.05, 0.001, 0.015), 2000), at(6), 0.5)
+    m.add(mallet(hz("F", 4)), at(6), 0.45)
+    m.add(mallet(hz("C", 5)), at(6.8), 0.45)
+    m.add(bloom([hz("F", 3), hz("C", 4), hz("F", 4)], 0.9), at(6.1), 0.4)
+    for f in [11, 13]:
+        m.add(wood_tick(520), at(f), 0.3)
+    return warm_master(m)
+
+
+def quill_warm():
+    """Perseverance (A): a whisper of pen on paper, then the tap answers with a kalimba E rising to A
+    and a soft, open A sus2 bloom."""
+    m = Mix()
+    pen = soft(bandpass(noise(at(8)), 1800, 4500), 4500) * env(at(8), 0.05, at(8), 1.0, 0.08)
+    pen *= 0.6 + 0.4 * np.sin(2 * np.pi * 5 * tt(at(8))) ** 2  # strokes
+    m.add(pen, at(1), 0.18)
+    m.add(felt_thump(82, 0.3), at(10), 0.7)
+    m.add(kalimba(hz("E", 5)), at(10), 0.55)
+    m.add(kalimba(hz("A", 5)), at(10.9), 0.6)
+    m.add(bloom([hz("A", 3), hz("B", 4), hz("E", 4)], 1.1), at(10.1), 0.45)
+    m.add(glass(hz("A", 5), 1.0), at(11), 0.15)
+    return warm_master(m)
+
+
+def swarm_warm():
+    """Integrity (E): a soft breath gathers, the bloom opens on a glass E-B-F# chord, and three
+    kalimba notes float off with the butterflies, then it's quiet."""
+    m = Mix()
+    m.add(air(at(3), 300, 2200), at(0), 0.4)
+    m.add(felt_thump(82, 0.3), at(3), 0.6)
+    m.add(bloom([hz("E", 4), hz("B", 4), hz("F#", 5)], 1.3), at(3), 0.5)
+    m.add(glass(hz("B", 5), 1.3), at(3), 0.2)
+    for f, n in [(3.6, hz("E", 5)), (5.0, hz("G#", 5)), (6.8, hz("B", 5))]:
+        m.add(kalimba(n, 0.7), at(f), 0.3)
+    return warm_master(m)
+
+
+def pan_warm():
+    """Kindness (G): a gentle sizzle, a soft woody 'whoop' on the flip, the catch lands with a felt
+    thump and a G-B mallet third, then a warm G major bloom."""
+    m = Mix()
+    sz = soft(highpass(noise(at(5)), 2500), 6000) * env(at(5), 0.05, 2, 1.0, 0.1)
+    m.add(sz, at(0), 0.12)
+    whoop = osc("triangle", lambda t: 220 * (1 + 1.2 * t / 0.18), 0.18) * env(0.18, 0.01, 0.09)
+    m.add(soft(whoop, 2500), at(5), 0.4)
+    m.add(felt_thump(78, 0.35), at(11), 0.9)
+    m.add(mallet(hz("G", 4)), at(11), 0.5)
+    m.add(mallet(hz("B", 4)), at(11.8), 0.5)
+    m.add(bloom([hz("G", 3), hz("D", 4), hz("B", 4)], 1.2), at(11.2), 0.5)
+    return warm_master(m)
+
+
+def justice_warm():
+    """Justice (Bb): two soft wood ticks as it locks on, the shot (rounded off) with a felt thump and a
+    Bb-F fifth, and one kalimba note as the coin lands."""
+    m = Mix()
+    m.add(wood_tick(1300), at(5), 0.3)
+    m.add(wood_tick(1550), at(6), 0.35)
+    m.add(soft(gunshot(), 5000), at(7), 0.6)
+    m.add(felt_thump(58, 0.4), at(7), 0.8)
+    m.add(mallet(hz("A#", 4)), at(7), 0.4)
+    m.add(mallet(hz("F", 5)), at(7.9), 0.4)
+    m.add(bloom([hz("A#", 3), hz("F", 4), hz("A#", 4)], 1.0), at(7.2), 0.35)
+    m.add(kalimba(hz("A#", 5), 0.8), at(15), 0.4)
+    return warm_master(m)
+
+
+# file name -> (the VFX it goes with, the sound). -v2 is the second, acoustic set; -ut the third; -warm the fourth.
 SOUNDS = {
     "CastKnifePatience": ("CastKnifePatience", knife),
     "CastStarDetermination": ("CastStarDetermination", star),
@@ -820,6 +994,14 @@ SOUNDS = {
     "CastSwarmIntegrity-ut": ("CastSwarmIntegrity", swarm_ut),
     "ClassV3Kindness-ut": ("ClassV3Kindness", pan_ut),
     "ClassJustice-ut": ("ClassJustice", justice_ut),
+    # Fourth set: warm, rewarding but calm, every class.
+    "CastKnifePatience-warm": ("CastKnifePatience", knife_warm),
+    "CastStarDetermination-warm": ("CastStarDetermination", star_warm),
+    "CastGloveBravery-warm": ("CastGloveBravery", glove_warm),
+    "ClassV3Perseverance-warm": ("ClassV3Perseverance", quill_warm),
+    "CastSwarmIntegrity-warm": ("CastSwarmIntegrity", swarm_warm),
+    "ClassV3Kindness-warm": ("ClassV3Kindness", pan_warm),
+    "ClassJustice-warm": ("ClassJustice", justice_warm),
 }
 
 
