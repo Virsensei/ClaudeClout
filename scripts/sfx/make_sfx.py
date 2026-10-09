@@ -665,7 +665,226 @@ def swarm():
     return m.master(0.35, 0.8)
 
 
-# file name -> (the VFX it goes with, the sound). v2 is the second, acoustic set.
+# ------------------------------------- third set: Undertale / Deltarune style
+# Lo-fi and dry: low sample-rate crunch, square-wave blips, crunchy bit-noise hits,
+# FM bells (SNES flavour), wobbly power-up sweeps and glittery sparkles. Original
+# sounds in that style (nothing is copied from the games).
+
+def lofi(x, bits=7, hold=3):
+    """The crunchy, low sample-rate sound of old game audio (about 15 kHz, 7-bit)."""
+    return lowpass(crush(x, bits, hold), 7000)
+
+
+def fm_bell(freq, dur=0.8, ratio=3.5, index=4.0):
+    """FM bell: bright at the strike, mellowing as it rings (SNES-style chime)."""
+    t = tt(dur)
+    i = index * np.exp(-t * 6)
+    y = np.sin(2 * np.pi * freq * t + i * np.sin(2 * np.pi * freq * ratio * t))
+    return y * env(dur, 0.001, dur * 0.6)
+
+
+def text_blip(freq, dur=0.035):
+    """A dialogue-text blip: a tiny, dry square-wave beep."""
+    return osc("square", freq, dur, 0.5) * env(dur, 0.001, dur, 0.6, 0.008)
+
+
+def ut_hit(depth=1.0):
+    """Crunchy damage hit: bit-noise crash plus a square wave dropping in pitch."""
+    d = 0.22 * depth
+    n = noise(d, 6000) * env(d, 0.0005, d * 0.4)
+    drop = osc("square", lambda t: 420 * np.exp(-t * 18) + 60, d, 0.5) * env(d, 0.0005, d * 0.5)
+    return np.tanh(2 * stack(n, 0.8 * drop, 1.2 * thump(140, 40, d)))
+
+
+def ut_slash():
+    """Knife slash: a quick noise swish and a falling metallic 'shing'."""
+    sw = whoosh(0.12, 1500, 8000, 2.5)
+    shing = osc("square", lambda t: 3200 * np.exp(-t * 4), 0.25, 0.3) * env(0.25, 0.001, 0.12)
+    return stack(sw, np.concatenate([np.zeros(int(0.06 * SR)), 0.35 * shing]))
+
+
+def ut_power(dur=0.45, f0=180, f1=1400):
+    """Power-up: a pulse wave sweeping up with a fast wobble, duty cycling for that chip shimmer."""
+    t = tt(dur)
+    f = lambda t: f0 * (f1 / f0) ** (t / dur) * (1 + 0.04 * np.sin(2 * np.pi * 14 * t))
+    a = osc("square", f, dur, 0.25)
+    b = osc("square", lambda t: f(t) * 1.005, dur, 0.5)
+    return (a + b) * 0.5 * env(dur, 0.01, dur, 0.8, 0.03)
+
+
+def ut_sparkle(base=1760, n=6, gap=0.028):
+    """Glittery sparkle: fast rising square arpeggio with a shimmering tail."""
+    out = np.zeros(int((gap * n + 0.25) * SR))
+    for k in range(n):
+        f = base * [1, 1.25, 1.5, 2, 2.5, 3, 4][k % 7]
+        s = osc("square", f, 0.12, 0.25) * env(0.12, 0.001, 0.05) * (1 - 0.08 * k)
+        i = int(k * gap * SR)
+        out[i:i + len(s)] += s
+    tail = osc("sine", lambda t: base * 2 * (1 + 0.01 * np.sin(2 * np.pi * 30 * t)), 0.25) * env(0.25, 0.01, 0.1)
+    out[-len(tail):] += 0.4 * tail
+    return out
+
+
+def ut_spell():
+    """Spell cast: an airy swish rising into a sparkle."""
+    return stack(0.7 * whoosh(0.3, 400, 6000, 2), np.concatenate([np.zeros(int(0.18 * SR)), 0.6 * ut_sparkle(1568, 5)]))
+
+
+def ut_heal(root=hz("C", 5)):
+    """Healing chime: warm sine notes gliding up a major chord, with glitter on top."""
+    out = np.zeros(int(0.9 * SR))
+    for k, r in enumerate([1, 1.26, 1.5, 2]):
+        f = root * r
+        s = osc("sine", lambda t: f * (0.97 + 0.03 * np.minimum(t / 0.04, 1)), 0.5) * env(0.5, 0.005, 0.3)
+        i = int(k * 0.06 * SR)
+        out[i:i + len(s)] += s * 0.6
+    sp = ut_sparkle(root * 4, 4, 0.04) * 0.35
+    out[int(0.15 * SR):int(0.15 * SR) + len(sp)] += sp[: len(out) - int(0.15 * SR)]
+    return out
+
+
+def ut_twinkle(base):
+    return lofi(ut_sparkle(base, 4, 0.035), 8, 2)
+
+
+def ut_master(m):
+    """Dry, a little lo-fi: barely any reverb and a soft top end."""
+    y = m.master(0.08, 0.2)
+    y = lowpass(y, 11000)
+    return y / np.max(np.abs(y)) * 0.89
+
+
+# --------------------------------------------------------- third set: sounds
+
+def knife_ut():
+    """Patience: clock ticks as text blips, the knife slash, a held whine, then a crunchy damage hit."""
+    m = Mix()
+    for f in range(0, 8):
+        m.add(lofi(text_blip(1400 if f % 2 == 0 else 1050, 0.03)), at(f), 0.45)
+    m.add(lofi(fm_bell(hz("B", 6), 0.25, 3.5, 2)), at(6), 0.3)
+    m.add(lofi(ut_slash()), at(7) - 0.05, 0.8)
+    whine = osc("square", lambda t: 2400 * (1 + 0.03 * np.sin(2 * np.pi * 9 * t)), at(2.6), 0.125)
+    m.add(lofi(whine * env(at(2.6), 0.02, 1, 0.7, 0.02)), at(7.6), 0.12)
+    m.add(lofi(ut_hit(1.1)), at(10), 1.0)
+    m.add(lofi(noise(0.15, 9000) * env(0.15, 0.001, 0.05)), at(10) + 0.02, 0.4)  # shards
+    m.add(lofi(fm_bell(hz("E", 7), 0.3, 3.5, 2.5)), at(13), 0.3)
+    m.add(lofi(blip(900, 0.08, "square", 0.5, 0.06, sweep=-0.6)), at(16), 0.3)
+    m.add(ut_twinkle(hz("E", 6)), at(19), 0.45)
+    return ut_master(m)
+
+
+def star_ut():
+    """Determination: a wobbly power-up charge into a bright, save-point-style chime."""
+    m = Mix()
+    m.add(lofi(text_blip(880, 0.05)), at(0), 0.4)
+    m.add(lofi(ut_power(at(6.6), 150, 1500)), at(0.4), 0.26)
+    m.add(lofi(ut_hit(0.8)), at(7), 0.6)
+    # The chime: two FM bell notes a fifth apart, then a shimmering octave above.
+    m.add(lofi(fm_bell(hz("C", 6), 1.0), 8, 2), at(7), 0.5)
+    m.add(lofi(fm_bell(hz("G", 6), 0.9), 8, 2), at(7.6), 0.4)
+    m.add(lofi(fm_bell(hz("C", 7), 0.8, 2.0, 2.5), 8, 2), at(8.2), 0.3)
+    for k, f in enumerate([13, 13.5, 14, 14.5, 15, 15.5, 16, 16.5]):
+        m.add(lofi(text_blip([2093, 1760, 1568, 1319, 1175, 1047, 880, 784][k], 0.04)), at(f), 0.2)
+    m.add(ut_twinkle(hz("C", 6)), at(19), 0.45)
+    return ut_master(m)
+
+
+def glove_ut():
+    """Bravery: brackets snap on, a charging buzz, a big crunchy punch, two hops and a ready ding."""
+    m = Mix()
+    m.add(lofi(text_blip(440, 0.04)), at(0), 0.4)
+    m.add(lofi(text_blip(660, 0.04)), at(1), 0.4)
+    m.add(lofi(ut_power(at(4), 90, 500)), at(2), 0.45)
+    m.add(lofi(ut_hit(1.4)), at(6), 1.0)
+    m.add(lofi(noise(0.3, 3000) * env(0.3, 0.001, 0.15)), at(6), 0.4)  # rumble
+    m.add(lofi(ut_hit(0.5)), at(8), 0.3)
+    for f in [11, 13]:
+        m.add(lofi(blip(300, 0.06, "square", 0.5, 0.04, sweep=-0.5)), at(f), 0.35)
+    m.add(lofi(fm_bell(hz("D", 7), 0.4, 3.5, 2.5)), at(14), 0.3)
+    m.add(lofi(blip(900, 0.08, "square", 0.5, 0.06, sweep=-0.6)), at(16), 0.3)
+    m.add(ut_twinkle(hz("D", 6)), at(19), 0.45)
+    return ut_master(m)
+
+
+def quill_ut():
+    """Perseverance: the quill writes like dialogue text (a blip per stroke), then a spell-cast sparkle."""
+    m = Mix()
+    m.add(lofi(text_blip(700, 0.04)), at(0), 0.4)
+    scale = [hz(n, 5) for n in ["D", "E", "F", "G", "A", "C"]]
+    t = at(1)
+    k = 0
+    while t < at(9):
+        m.add(lofi(text_blip(scale[int(RNG.integers(0, len(scale)))] , 0.03)), t, 0.32)
+        t += 0.055 if k % 5 != 4 else 0.11  # little pauses, like words
+        k += 1
+    m.add(lofi(ut_hit(0.6)), at(10), 0.55)
+    m.add(lofi(ut_spell(), 8, 2), at(10), 0.7)
+    m.add(lofi(fm_bell(hz("D", 6), 0.9, 1.4, 3)), at(10), 0.35)
+    for k, f in enumerate([11, 11.6, 12.3, 13.2, 14.4]):
+        m.add(lofi(blip(800 - 70 * k, 0.04, "square", 0.25, 0.03, sweep=0.6)), at(f), 0.22)
+    m.add(lofi(blip(500, 0.12, "square", 0.25, 0.1, sweep=1.5)), at(11), 0.25)
+    m.add(lofi(fm_bell(hz("A", 6), 0.3, 3.5, 2)), at(14), 0.25)
+    m.add(lofi(blip(900, 0.08, "square", 0.5, 0.06, sweep=-0.6)), at(16), 0.3)
+    m.add(ut_twinkle(hz("D", 6)), at(19), 0.45)
+    return ut_master(m)
+
+
+def swarm_ut():
+    """Integrity: a soft gathering hum, a spell-cast bloom, a blip for each butterfly that flies off."""
+    m = Mix()
+    m.add(lofi(ut_power(at(3), 300, 900)) * 0.6, at(0), 0.35)
+    m.add(lofi(ut_spell(), 8, 2), at(3), 0.75)
+    m.add(lofi(fm_bell(hz("A", 5), 0.8, 2.0, 2)), at(3), 0.35)
+    flyers = [(3.24, 14.38), (3.63, 13.06), (4.13, 14.53), (4.62, 14.36), (5.02, 13.55),
+              (5.53, 13.56), (5.82, 16.58), (6.33, 15.07), (6.81, 15.27), (7.15, 14.25)]
+    penta = [hz(n, o) for n, o in [("A", 5), ("C#", 6), ("E", 6), ("F#", 6), ("A", 6), ("B", 6), ("C#", 7), ("E", 7), ("F#", 7), ("A", 7)]]
+    for k, (release, leave) in enumerate(flyers):
+        fl = osc("square", lambda t: penta[k] * (1 + 0.02 * np.sin(2 * np.pi * 16 * t)), 0.09, 0.25) * env(0.09, 0.002, 0.06)
+        m.add(lofi(fl), at(release), 0.22)
+        m.add(lofi(text_blip(penta[(k * 3) % 10] * 2, 0.03)), at(leave + 2.5), 0.15)
+    m.add(ut_twinkle(hz("A", 6)), at(18.5), 0.4)
+    return ut_master(m)
+
+
+def pan_ut():
+    """Kindness: crunchy sizzle, a 'bwoop' jump on the flip, a soft squish on the catch, a healing chime."""
+    m = Mix()
+    m.add(lofi(text_blip(600, 0.04)), at(0), 0.4)
+    sz = noise(at(6), 7000) * (0.5 + 0.5 * (RNG.uniform(0, 1, int(at(6) * SR)) > 0.97))
+    m.add(lofi(highpass(sz, 2500) * env(at(6), 0.02, 2, 0.5, 0.05)), at(0.5), 0.25)
+    m.add(lofi(blip(250, 0.06, "square", 0.5, 0.05, sweep=-0.4)), at(3), 0.3)  # dip
+    m.add(lofi(blip(260, 0.22, "square", 0.25, 0.18, sweep=3.5)), at(5), 0.45)  # bwoop!
+    m.add(lofi(fm_bell(hz("C", 7), 0.3, 3.5, 2)), at(8), 0.3)
+    squish = osc("square", lambda t: 180 * np.exp(-t * 10) + 70, 0.12, 0.5) * env(0.12, 0.001, 0.07)
+    m.add(lofi(stack(squish, 0.5 * noise(0.08, 4000) * env(0.08, 0.001, 0.04))), at(11), 0.8)
+    m.add(lofi(highpass(noise(0.4, 9000), 3000) * env(0.4, 0.005, 0.2)), at(11), 0.25)
+    m.add(lofi(text_blip(1100, 0.04)), at(13), 0.3)  # butter
+    m.add(lofi(ut_heal(hz("G", 5)), 8, 2), at(13.5), 0.6)
+    m.add(ut_twinkle(hz("G", 6)), at(19), 0.45)
+    return ut_master(m)
+
+
+def justice_ut():
+    """Justice: targeting blips while the crosshair closes, a lock-on double blip, a lo-fi version of the
+    gunshot with a bright chime, coin-spin blips and a ding as it lands."""
+    m = Mix()
+    for k, f in enumerate([0, 1, 2, 3, 4]):
+        m.add(lofi(text_blip(900 + 120 * k, 0.04)), at(f), 0.3)
+    m.add(lofi(text_blip(1760, 0.04)), at(5), 0.4)
+    m.add(lofi(text_blip(2350, 0.07)), at(6), 0.45)
+    shot = gunshot()
+    m.add(lofi(shot * env(len(shot) / SR, 0.0005, 0.3), 6, 3), at(7), 1.0)  # drier, shorter tail
+    m.add(lofi(fm_bell(hz("F", 6), 0.7, 3.5, 3), 8, 2), at(7.3), 0.35)
+    m.add(lofi(whoosh(at(3), 2500, 8000, 2.5)), at(9), 0.2)
+    for k in range(8):  # the coin spinning: quick alternating blips
+        m.add(lofi(text_blip(1568 if k % 2 == 0 else 2093, 0.03)), at(11) + k * at(4) / 8, 0.22)
+    m.add(lofi(fm_bell(hz("E", 7), 0.5, 3.5, 3)), at(15), 0.4)
+    m.add(lofi(blip(900, 0.08, "square", 0.5, 0.06, sweep=-0.6)), at(17), 0.3)
+    m.add(ut_twinkle(hz("A", 6)), at(19), 0.45)
+    return ut_master(m)
+
+
+# file name -> (the VFX it goes with, the sound). -v2 is the second, acoustic set; -ut the third.
 SOUNDS = {
     "CastKnifePatience": ("CastKnifePatience", knife),
     "CastStarDetermination": ("CastStarDetermination", star),
@@ -679,6 +898,14 @@ SOUNDS = {
     "CastGloveBravery-v2": ("CastGloveBravery", glove_v2),
     "ClassJustice-v2": ("ClassJustice", justice_v2),
     "CastSwarmIntegrity": ("CastSwarmIntegrity", swarm),
+    # Third set: Undertale / Deltarune style, every class.
+    "CastKnifePatience-ut": ("CastKnifePatience", knife_ut),
+    "CastStarDetermination-ut": ("CastStarDetermination", star_ut),
+    "CastGloveBravery-ut": ("CastGloveBravery", glove_ut),
+    "ClassV3Perseverance-ut": ("ClassV3Perseverance", quill_ut),
+    "CastSwarmIntegrity-ut": ("CastSwarmIntegrity", swarm_ut),
+    "ClassV3Kindness-ut": ("ClassV3Kindness", pan_ut),
+    "ClassJustice-ut": ("ClassJustice", justice_ut),
 }
 
 
